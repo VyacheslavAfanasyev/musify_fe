@@ -1,15 +1,15 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 
-const API_BASE_URL = 'http://localhost:3000';
+const API_BASE_URL = "http://localhost:3000";
 
 interface RegisterFormData {
   email: string;
   username: string;
   password: string;
-  role: 'musician' | 'listener' | '';
+  role: "musician" | "listener" | "";
 }
 
 interface ApiResponse {
@@ -26,37 +26,39 @@ interface ApiResponse {
 export default function RegisterPage() {
   const router = useRouter();
   const [formData, setFormData] = useState<RegisterFormData>({
-    email: '',
-    username: '',
-    password: '',
-    role: '',
+    email: "",
+    username: "",
+    password: "",
+    role: "",
   });
-  const [error, setError] = useState<string>('');
+  const [error, setError] = useState<string>("");
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) => {
     const { name, value } = e.target;
     setFormData((prev) => ({
       ...prev,
       [name]: value,
     }));
-    setError('');
+    setError("");
   };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setError('');
+    setError("");
     setIsLoading(true);
 
     // Валидация
     if (!formData.email || !formData.username || !formData.password) {
-      setError('Все поля обязательны для заполнения');
+      setError("Все поля обязательны для заполнения");
       setIsLoading(false);
       return;
     }
 
     if (!formData.role) {
-      setError('Пожалуйста, выберите роль');
+      setError("Пожалуйста, выберите роль");
       setIsLoading(false);
       return;
     }
@@ -64,23 +66,23 @@ export default function RegisterPage() {
     // Валидация email
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(formData.email)) {
-      setError('Введите корректный email адрес');
+      setError("Введите корректный email адрес");
       setIsLoading(false);
       return;
     }
 
     // Валидация пароля (минимум 6 символов)
     if (formData.password.length < 6) {
-      setError('Пароль должен содержать минимум 6 символов');
+      setError("Пароль должен содержать минимум 6 символов");
       setIsLoading(false);
       return;
     }
 
     try {
       const response = await fetch(`${API_BASE_URL}/auth/register`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           email: formData.email,
@@ -90,10 +92,45 @@ export default function RegisterPage() {
         }),
       });
 
-      const data: ApiResponse = await response.json();
+      // Пытаемся прочитать ответ как JSON
+      let data: ApiResponse;
+      try {
+        data = await response.json();
+      } catch {
+        // Если не удалось распарсить JSON, обрабатываем по статусу
+        let errorMessage = "Произошла ошибка при регистрации";    
+        if (response.status === 404) {
+          errorMessage = "Пользователь не найден";
+        } else if (response.status === 400) {
+          errorMessage = "Неверные данные для регистрации";
+        } else if (response.status === 409) {
+          errorMessage =
+            "Пользователь с таким email или username уже существует";
+        } else if (response.status >= 500) {
+          errorMessage = "Ошибка сервера. Попробуйте позже";
+        }
+        setError(errorMessage);
+        setIsLoading(false);
+        return;
+      }
 
+      // Проверяем статус ответа и данные
       if (!response.ok || !data.success) {
-        setError(data.error || 'Произошла ошибка при регистрации');
+        // Используем сообщение об ошибке из ответа или по статусу
+        let errorMessage = data.error || "Произошла ошибка при регистрации";
+        if (!data.error) {
+          if (response.status === 404) {
+            errorMessage = "Пользователь не найден";
+          } else if (response.status === 400) {
+            errorMessage = "Неверные данные для регистрации";
+          } else if (response.status === 409) {
+            errorMessage =
+              "Пользователь с таким email или username уже существует";
+          } else if (response.status >= 500) {
+            errorMessage = "Ошибка сервера. Попробуйте позже";
+          }
+        }
+        setError(errorMessage);
         setIsLoading(false);
         return;
       }
@@ -101,10 +138,15 @@ export default function RegisterPage() {
       // Успешная регистрация
       if (data.user) {
         // Перенаправляем на страницу входа
-        router.push('/login?registered=true');
+        router.push("/login?registered=true");
       }
     } catch (err) {
-      setError('Ошибка сети. Проверьте подключение к интернету.');
+      // Обрабатываем только реальные сетевые ошибки
+      if (err instanceof TypeError && err.message.includes("fetch")) {
+        setError("Ошибка сети. Проверьте подключение к интернету.");
+      } else {
+        setError("Произошла неожиданная ошибка. Попробуйте позже.");
+      }
       setIsLoading(false);
     }
   };
@@ -210,7 +252,9 @@ export default function RegisterPage() {
             {/* Error message */}
             {error && (
               <div className="p-4 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
-                <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+                <p className="text-sm text-red-600 dark:text-red-400">
+                  {error}
+                </p>
               </div>
             )}
 
@@ -220,14 +264,14 @@ export default function RegisterPage() {
               disabled={isLoading}
               className="w-full py-3 px-4 rounded-lg bg-foreground text-background font-medium hover:bg-[#383838] dark:hover:bg-[#ccc] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isLoading ? 'Регистрация...' : 'Зарегистрироваться'}
+              {isLoading ? "Регистрация..." : "Зарегистрироваться"}
             </button>
           </form>
 
           {/* Login link */}
           <div className="mt-6 text-center">
             <p className="text-sm text-zinc-600 dark:text-zinc-400">
-              Уже есть аккаунт?{' '}
+              Уже есть аккаунт?{" "}
               <a
                 href="/login"
                 className="font-medium text-zinc-950 dark:text-zinc-50 hover:underline"
@@ -241,4 +285,3 @@ export default function RegisterPage() {
     </div>
   );
 }
-

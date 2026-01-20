@@ -84,10 +84,43 @@ export default function LoginPage() {
         }),
       });
 
-      const data: LoginApiResponse = await response.json();
+      // Пытаемся прочитать ответ как JSON
+      let data: LoginApiResponse;
+      try {
+        data = await response.json();
+      } catch {
+        // Если не удалось распарсить JSON, обрабатываем по статусу
+        let errorMessage = "Произошла ошибка при входе";
+        if (response.status === 404) {
+          errorMessage = "Пользователь не найден";
+        } else if (response.status === 400) {
+          errorMessage = "Неверные данные для входа";
+        } else if (response.status === 401) {
+          errorMessage = "Неверный email или пароль";
+        } else if (response.status >= 500) {
+          errorMessage = "Ошибка сервера. Попробуйте позже";
+        }
+        setError(errorMessage);
+        setIsLoading(false);
+        return;
+      }
 
+      // Проверяем статус ответа и данные
       if (!response.ok || !data.success) {
-        setError(data.error || "Неверный email или пароль");
+        // Используем сообщение об ошибке из ответа или по статусу
+        let errorMessage = data.error || "Произошла ошибка при входе";
+        if (!data.error) {
+          if (response.status === 404) {
+            errorMessage = "Пользователь не найден";
+          } else if (response.status === 400) {
+            errorMessage = "Неверные данные для входа";
+          } else if (response.status === 401) {
+            errorMessage = "Неверный email или пароль";
+          } else if (response.status >= 500) {
+            errorMessage = "Ошибка сервера. Попробуйте позже";
+          }
+        }
+        setError(errorMessage);
         setIsLoading(false);
         return;
       }
@@ -105,8 +138,13 @@ export default function LoginPage() {
         // Перенаправляем на главную страницу
         router.push("/");
       }
-    } catch {
-      setError("Ошибка сети. Проверьте подключение к интернету.");
+    } catch (err) {
+      // Обрабатываем только реальные сетевые ошибки
+      if (err instanceof TypeError && err.message.includes("fetch")) {
+        setError("Ошибка сети. Проверьте подключение к интернету.");
+      } else {
+        setError("Произошла неожиданная ошибка. Попробуйте позже.");
+      }
       setIsLoading(false);
     }
   };
