@@ -1,0 +1,8 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+# Запускаем проверку типов TypeScript
+npm run type-check
+
+# Запускаем линтер
+npm run lint
