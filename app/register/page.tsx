@@ -2,25 +2,13 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-
-const API_BASE_URL = "http://localhost:3000";
+import { registerUser } from "@/lib/auth";
 
 interface RegisterFormData {
   email: string;
   username: string;
   password: string;
   role: "musician" | "listener" | "";
-}
-
-interface ApiResponse {
-  success: boolean;
-  user?: {
-    id: string;
-    email: string;
-    username: string;
-    role: string;
-  };
-  error?: string;
 }
 
 export default function RegisterPage() {
@@ -79,74 +67,26 @@ export default function RegisterPage() {
     }
 
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/register`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          email: formData.email,
-          username: formData.username,
-          password: formData.password,
-          role: formData.role,
-        }),
+      const result = await registerUser({
+        email: formData.email,
+        username: formData.username,
+        password: formData.password,
+        role: formData.role as "musician" | "listener",
       });
 
-      // Пытаемся прочитать ответ как JSON
-      let data: ApiResponse;
-      try {
-        data = await response.json();
-      } catch {
-        // Если не удалось распарсить JSON, обрабатываем по статусу
-        let errorMessage = "Произошла ошибка при регистрации";
-        if (response.status === 404) {
-          errorMessage = "Пользователь не найден";
-        } else if (response.status === 400) {
-          errorMessage = "Неверные данные для регистрации";
-        } else if (response.status === 409) {
-          errorMessage =
-            "Пользователь с таким email или username уже существует";
-        } else if (response.status >= 500) {
-          errorMessage = "Ошибка сервера. Попробуйте позже";
-        }
-        setError(errorMessage);
-        setIsLoading(false);
-        return;
-      }
-
-      // Проверяем статус ответа и данные
-      if (!response.ok || !data.success) {
-        // Используем сообщение об ошибке из ответа или по статусу
-        let errorMessage = data.error || "Произошла ошибка при регистрации";
-        if (!data.error) {
-          if (response.status === 404) {
-            errorMessage = "Пользователь не найден";
-          } else if (response.status === 400) {
-            errorMessage = "Неверные данные для регистрации";
-          } else if (response.status === 409) {
-            errorMessage =
-              "Пользователь с таким email или username уже существует";
-          } else if (response.status >= 500) {
-            errorMessage = "Ошибка сервера. Попробуйте позже";
-          }
-        }
-        setError(errorMessage);
+      if (!result.success) {
+        setError(result.error || "Произошла ошибка при регистрации");
         setIsLoading(false);
         return;
       }
 
       // Успешная регистрация
-      if (data.user) {
+      if (result.user) {
         // Перенаправляем на страницу входа
         router.push("/login?registered=true");
       }
-    } catch (err) {
-      // Обрабатываем только реальные сетевые ошибки
-      if (err instanceof TypeError && err.message.includes("fetch")) {
-        setError("Ошибка сети. Проверьте подключение к интернету.");
-      } else {
-        setError("Произошла неожиданная ошибка. Попробуйте позже.");
-      }
+    } catch {
+      setError("Произошла неожиданная ошибка. Попробуйте позже.");
       setIsLoading(false);
     }
   };

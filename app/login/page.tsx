@@ -2,25 +2,11 @@
 
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-
-const API_BASE_URL = "http://localhost:3000";
+import { loginUser } from "@/lib/auth";
 
 interface LoginFormData {
   email: string;
   password: string;
-}
-
-interface LoginApiResponse {
-  success: boolean;
-  user?: {
-    id: string;
-    email: string;
-    username: string;
-    role: string;
-  };
-  accessToken?: string;
-  refreshToken?: string;
-  error?: string;
 }
 
 export default function LoginPage() {
@@ -73,78 +59,22 @@ export default function LoginPage() {
     }
 
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/login`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          email: formData.email,
-          password: formData.password,
-        }),
+      const result = await loginUser({
+        email: formData.email,
+        password: formData.password,
       });
 
-      // Пытаемся прочитать ответ как JSON
-      let data: LoginApiResponse;
-      try {
-        data = await response.json();
-      } catch {
-        // Если не удалось распарсить JSON, обрабатываем по статусу
-        let errorMessage = "Произошла ошибка при входе";
-        if (response.status === 404) {
-          errorMessage = "Пользователь не найден";
-        } else if (response.status === 400) {
-          errorMessage = "Неверные данные для входа";
-        } else if (response.status === 401) {
-          errorMessage = "Неверный email или пароль";
-        } else if (response.status >= 500) {
-          errorMessage = "Ошибка сервера. Попробуйте позже";
-        }
-        setError(errorMessage);
+      if (!result.success) {
+        setError(result.error || "Произошла ошибка при входе");
         setIsLoading(false);
         return;
       }
 
-      // Проверяем статус ответа и данные
-      if (!response.ok || !data.success) {
-        // Используем сообщение об ошибке из ответа или по статусу
-        let errorMessage = data.error || "Произошла ошибка при входе";
-        if (!data.error) {
-          if (response.status === 404) {
-            errorMessage = "Пользователь не найден";
-          } else if (response.status === 400) {
-            errorMessage = "Неверные данные для входа";
-          } else if (response.status === 401) {
-            errorMessage = "Неверный email или пароль";
-          } else if (response.status >= 500) {
-            errorMessage = "Ошибка сервера. Попробуйте позже";
-          }
-        }
-        setError(errorMessage);
-        setIsLoading(false);
-        return;
-      }
-
-      // Успешный вход
-      if (data.user && data.accessToken && data.refreshToken) {
-        // Сохраняем токены и данные пользователя в localStorage
-        localStorage.setItem("accessToken", data.accessToken);
-        localStorage.setItem("refreshToken", data.refreshToken);
-        localStorage.setItem("userId", data.user.id);
-        localStorage.setItem("userEmail", data.user.email);
-        localStorage.setItem("username", data.user.username);
-        localStorage.setItem("userRole", data.user.role);
-
-        // Перенаправляем на главную страницу
-        router.push("/");
-      }
-    } catch (err) {
-      // Обрабатываем только реальные сетевые ошибки
-      if (err instanceof TypeError && err.message.includes("fetch")) {
-        setError("Ошибка сети. Проверьте подключение к интернету.");
-      } else {
-        setError("Произошла неожиданная ошибка. Попробуйте позже.");
-      }
+      // Успешный вход - токены уже сохранены в loginUser
+      // Перенаправляем на главную страницу
+      router.push("/");
+    } catch {
+      setError("Произошла неожиданная ошибка. Попробуйте позже.");
       setIsLoading(false);
     }
   };
