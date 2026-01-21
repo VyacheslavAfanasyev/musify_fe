@@ -43,6 +43,17 @@ export interface LogoutResponse {
   error?: string;
 }
 
+export interface ChangePasswordRequest {
+  userId: string;
+  oldPassword: string;
+  newPassword: string;
+}
+
+export interface ChangePasswordResponse {
+  success: boolean;
+  error?: string;
+}
+
 /**
  * Сохраняет данные пользователя и токены в localStorage
  */
@@ -398,6 +409,83 @@ export async function logoutUser(
     // Обрабатываем только реальные сетевые ошибки
     // Даже при сетевой ошибке очищаем localStorage
     clearUserData();
+    if (err instanceof TypeError && err.message.includes("fetch")) {
+      return {
+        success: false,
+        error: "Ошибка сети. Проверьте подключение к интернету.",
+      };
+    } else {
+      return {
+        success: false,
+        error: "Произошла неожиданная ошибка. Попробуйте позже.",
+      };
+    }
+  }
+}
+
+/**
+ * Изменяет пароль пользователя
+ * @param data - Данные для смены пароля (userId, oldPassword, newPassword)
+ * @returns Promise с результатом операции
+ */
+export async function changePassword(
+  data: ChangePasswordRequest
+): Promise<ChangePasswordResponse> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/auth/change_pass`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(data),
+    });
+
+    // Пытаемся прочитать ответ как JSON
+    let result: ChangePasswordResponse;
+    try {
+      result = await response.json();
+    } catch {
+      // Если не удалось распарсить JSON, обрабатываем по статусу
+      let errorMessage = "Произошла ошибка при смене пароля";
+      if (response.status === 400) {
+        errorMessage = "Неверные данные для смены пароля";
+      } else if (response.status === 401) {
+        errorMessage = "Неверный старый пароль";
+      } else if (response.status === 404) {
+        errorMessage = "Пользователь не найден";
+      } else if (response.status >= 500) {
+        errorMessage = "Ошибка сервера. Попробуйте позже";
+      }
+      return {
+        success: false,
+        error: errorMessage,
+      };
+    }
+
+    // Проверяем статус ответа и данные
+    if (!response.ok || !result.success) {
+      // Используем сообщение об ошибке из ответа или по статусу
+      let errorMessage = result.error || "Произошла ошибка при смене пароля";
+      if (!result.error) {
+        if (response.status === 400) {
+          errorMessage = "Неверные данные для смены пароля";
+        } else if (response.status === 401) {
+          errorMessage = "Неверный старый пароль";
+        } else if (response.status === 404) {
+          errorMessage = "Пользователь не найден";
+        } else if (response.status >= 500) {
+          errorMessage = "Ошибка сервера. Попробуйте позже";
+        }
+      }
+      return {
+        success: false,
+        error: errorMessage,
+      };
+    }
+
+    return result;
+  } catch (err) {
+    // Обрабатываем только реальные сетевые ошибки
     if (err instanceof TypeError && err.message.includes("fetch")) {
       return {
         success: false,
