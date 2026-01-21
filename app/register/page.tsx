@@ -98,7 +98,7 @@ export default function RegisterPage() {
         data = await response.json();
       } catch {
         // Если не удалось распарсить JSON, обрабатываем по статусу
-        let errorMessage = "Произошла ошибка при регистрации";    
+        let errorMessage = "Произошла ошибка при регистрации";
         if (response.status === 404) {
           errorMessage = "Пользователь не найден";
         } else if (response.status === 400) {
