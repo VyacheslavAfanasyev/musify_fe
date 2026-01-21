@@ -34,6 +34,15 @@ export interface RefreshTokenRequest {
 
 export type RefreshTokenResponse = AuthResponse;
 
+export interface LogoutRequest {
+  refreshToken: string;
+}
+
+export interface LogoutResponse {
+  success: boolean;
+  error?: string;
+}
+
 /**
  * Сохраняет данные пользователя и токены в localStorage
  */
@@ -44,6 +53,18 @@ function saveUserData(user: User, accessToken: string, refreshToken: string) {
   localStorage.setItem("userEmail", user.email);
   localStorage.setItem("username", user.username);
   localStorage.setItem("userRole", user.role);
+}
+
+/**
+ * Очищает данные пользователя и токены из localStorage
+ */
+function clearUserData() {
+  localStorage.removeItem("accessToken");
+  localStorage.removeItem("refreshToken");
+  localStorage.removeItem("userId");
+  localStorage.removeItem("userEmail");
+  localStorage.removeItem("username");
+  localStorage.removeItem("userRole");
 }
 
 /**
@@ -281,6 +302,102 @@ export async function refreshTokens(
     return data;
   } catch (err) {
     // Обрабатываем только реальные сетевые ошибки
+    if (err instanceof TypeError && err.message.includes("fetch")) {
+      return {
+        success: false,
+        error: "Ошибка сети. Проверьте подключение к интернету.",
+      };
+    } else {
+      return {
+        success: false,
+        error: "Произошла неожиданная ошибка. Попробуйте позже.",
+      };
+    }
+  }
+}
+
+/**
+ * Выполняет выход пользователя из системы
+ * Инвалидирует refresh токен и очищает данные из localStorage
+ * @param refreshToken - Refresh токен для инвалидации (опционально, если не передан, берется из localStorage)
+ * @returns Promise с результатом операции
+ */
+export async function logoutUser(
+  refreshToken?: string
+): Promise<LogoutResponse> {
+  // Если токен не передан, пытаемся получить из localStorage
+  const token = refreshToken || localStorage.getItem("refreshToken");
+
+  if (!token) {
+    // Если токена нет, просто очищаем localStorage
+    clearUserData();
+    return {
+      success: true,
+    };
+  }
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/auth/logout`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        refreshToken: token,
+      }),
+    });
+
+    // Пытаемся прочитать ответ как JSON
+    let result: LogoutResponse;
+    try {
+      result = await response.json();
+    } catch {
+      // Если не удалось распарсить JSON, обрабатываем по статусу
+      let errorMessage = "Произошла ошибка при выходе";
+      if (response.status === 400) {
+        errorMessage = "Неверный формат запроса";
+      } else if (response.status === 401) {
+        errorMessage = "Refresh token недействителен";
+      } else if (response.status >= 500) {
+        errorMessage = "Ошибка сервера. Попробуйте позже";
+      }
+      // Даже при ошибке очищаем localStorage
+      clearUserData();
+      return {
+        success: false,
+        error: errorMessage,
+      };
+    }
+
+    // Проверяем статус ответа и данные
+    if (!response.ok || !result.success) {
+      // Используем сообщение об ошибке из ответа или по статусу
+      let errorMessage = result.error || "Произошла ошибка при выходе";
+      if (!result.error) {
+        if (response.status === 400) {
+          errorMessage = "Неверный формат запроса";
+        } else if (response.status === 401) {
+          errorMessage = "Refresh token недействителен";
+        } else if (response.status >= 500) {
+          errorMessage = "Ошибка сервера. Попробуйте позже";
+        }
+      }
+      // Даже при ошибке очищаем localStorage
+      clearUserData();
+      return {
+        success: false,
+        error: errorMessage,
+      };
+    }
+
+    // Успешный выход - очищаем localStorage
+    clearUserData();
+
+    return result;
+  } catch (err) {
+    // Обрабатываем только реальные сетевые ошибки
+    // Даже при сетевой ошибке очищаем localStorage
+    clearUserData();
     if (err instanceof TypeError && err.message.includes("fetch")) {
       return {
         success: false,
