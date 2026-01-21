@@ -71,8 +71,8 @@ export default function LoginPage() {
       }
 
       // Успешный вход - токены уже сохранены в loginUser
-      // Перенаправляем на главную страницу
-      router.push("/");
+      // Перенаправляем на страницу профиля
+      router.push("/profile");
     } catch {
       setError("Произошла неожиданная ошибка. Попробуйте позже.");
       setIsLoading(false);

@@ -54,6 +54,46 @@ export interface ChangePasswordResponse {
   error?: string;
 }
 
+// Типы для профиля пользователя
+export interface UserProfile {
+  _id: string;
+  userId: string;
+  username: string;
+  displayName: string;
+  bio?: string;
+  avatarUrl?: string;
+  coverImageUrl?: string;
+  location?: string;
+  genres?: string[];
+  instruments?: string[];
+  socialLinks?: {
+    youtube?: string;
+    vk?: string;
+    telegram?: string;
+  };
+  stats?: {
+    tracksCount: number;
+    followersCount: number;
+    followingCount: number;
+    totalPlays: number;
+  };
+  preferences?: {
+    emailNotifications: boolean;
+    showOnlineStatus: boolean;
+    privateProfile: boolean;
+  };
+  role: string;
+  following?: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UserProfileResponse {
+  success: boolean;
+  user?: UserProfile;
+  error?: string;
+}
+
 /**
  * Сохраняет данные пользователя и токены в localStorage
  */
@@ -473,6 +513,89 @@ export async function changePassword(
           errorMessage = "Неверный старый пароль";
         } else if (response.status === 404) {
           errorMessage = "Пользователь не найден";
+        } else if (response.status >= 500) {
+          errorMessage = "Ошибка сервера. Попробуйте позже";
+        }
+      }
+      return {
+        success: false,
+        error: errorMessage,
+      };
+    }
+
+    return result;
+  } catch (err) {
+    // Обрабатываем только реальные сетевые ошибки
+    if (err instanceof TypeError && err.message.includes("fetch")) {
+      return {
+        success: false,
+        error: "Ошибка сети. Проверьте подключение к интернету.",
+      };
+    } else {
+      return {
+        success: false,
+        error: "Произошла неожиданная ошибка. Попробуйте позже.",
+      };
+    }
+  }
+}
+
+/**
+ * Получает профиль пользователя по его ID
+ * @param userId - UUID пользователя
+ * @returns Promise с данными профиля
+ */
+export async function getUserProfile(
+  userId: string
+): Promise<UserProfileResponse> {
+  try {
+    const accessToken = localStorage.getItem("accessToken");
+
+    if (!accessToken) {
+      return {
+        success: false,
+        error: "Требуется авторизация",
+      };
+    }
+
+    const response = await fetch(`${API_BASE_URL}/users/${userId}/profile`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    // Пытаемся прочитать ответ как JSON
+    let result: UserProfileResponse;
+    try {
+      result = await response.json();
+    } catch {
+      // Если не удалось распарсить JSON, обрабатываем по статусу
+      let errorMessage = "Произошла ошибка при получении профиля";
+      if (response.status === 401) {
+        errorMessage = "Требуется авторизация";
+      } else if (response.status === 404) {
+        errorMessage = "Профиль не найден";
+      } else if (response.status >= 500) {
+        errorMessage = "Ошибка сервера. Попробуйте позже";
+      }
+      return {
+        success: false,
+        error: errorMessage,
+      };
+    }
+
+    // Проверяем статус ответа и данные
+    if (!response.ok || !result.success) {
+      // Используем сообщение об ошибке из ответа или по статусу
+      let errorMessage =
+        result.error || "Произошла ошибка при получении профиля";
+      if (!result.error) {
+        if (response.status === 401) {
+          errorMessage = "Требуется авторизация";
+        } else if (response.status === 404) {
+          errorMessage = "Профиль не найден";
         } else if (response.status >= 500) {
           errorMessage = "Ошибка сервера. Попробуйте позже";
         }
