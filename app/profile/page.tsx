@@ -215,7 +215,7 @@ export default function ProfilePage() {
 
             {/* Profile Info */}
             <div className="flex-1 min-w-0">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 relative z-10">
                 <div>
                   <h1 className="text-3xl font-bold text-black dark:text-zinc-50 mb-1">
                     {profile.displayName || profile.username}
