@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { getUserProfile, UserProfile, logoutUser } from "@/lib/auth";
+import { uploadAvatar, getAvatarUrl } from "@/lib/media";
 import Image from "next/image";
 
 export default function ProfilePage() {
@@ -10,6 +11,11 @@ export default function ProfilePage() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string>("");
+  const [isUploading, setIsUploading] = useState<boolean>(false);
+  const [uploadError, setUploadError] = useState<string>("");
+  const [avatarError, setAvatarError] = useState<boolean>(false);
+  const [avatarVersion, setAvatarVersion] = useState<number>(0);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -34,6 +40,7 @@ export default function ProfilePage() {
         }
 
         setProfile(result.user);
+        setAvatarError(false);
       } catch {
         setError("Произошла неожиданная ошибка. Попробуйте позже.");
       } finally {
@@ -50,6 +57,57 @@ export default function ProfilePage() {
       router.push("/login");
     } catch (err) {
       console.error("Ошибка при выходе:", err);
+    }
+  };
+
+  const handleAvatarClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const userId = localStorage.getItem("userId");
+    if (!userId) {
+      setUploadError("Пользователь не найден");
+      return;
+    }
+
+    setIsUploading(true);
+    setUploadError("");
+
+    try {
+      const result = await uploadAvatar(file, userId);
+      if (!result.success || !result.file) {
+        setUploadError(result.error || "Не удалось загрузить аватар");
+        setIsUploading(false);
+        return;
+      }
+
+      // Обновляем профиль с новым URL аватара
+      if (profile) {
+        setProfile({
+          ...profile,
+          avatarUrl: result.file.url,
+        });
+      }
+
+      // Перезагружаем профиль для получения актуальных данных
+      const profileResult = await getUserProfile(userId);
+      if (profileResult.success && profileResult.user) {
+        setProfile(profileResult.user);
+        setAvatarError(false);
+        setAvatarVersion((prev) => prev + 1);
+      }
+    } catch {
+      setUploadError("Произошла неожиданная ошибка. Попробуйте позже.");
+    } finally {
+      setIsUploading(false);
+      // Очищаем input для возможности повторной загрузки того же файла
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
     }
   };
 
@@ -108,18 +166,50 @@ export default function ProfilePage() {
         <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-lg border border-zinc-200 dark:border-zinc-800 p-6 sm:p-8">
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
             {/* Avatar */}
-            <div className="relative w-32 h-32 rounded-full border-4 border-white dark:border-zinc-900 bg-zinc-200 dark:bg-zinc-800 overflow-hidden flex-shrink-0">
-              {profile.avatarUrl ? (
-                <Image
-                  src={profile.avatarUrl}
-                  alt={profile.displayName || profile.username}
-                  fill
-                  className="object-cover"
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center text-4xl font-semibold text-zinc-500 dark:text-zinc-400">
-                  {(profile.displayName || profile.username)[0].toUpperCase()}
+            <div className="relative flex-shrink-0">
+              <div
+                className="relative w-32 h-32 rounded-full border-4 border-white dark:border-zinc-900 bg-zinc-200 dark:bg-zinc-800 overflow-hidden cursor-pointer hover:opacity-80 transition-opacity group"
+                onClick={handleAvatarClick}
+              >
+                {!avatarError ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    key={`avatar-${profile.userId}-${avatarVersion}`}
+                    src={`${getAvatarUrl(profile.userId)}?v=${avatarVersion}`}
+                    alt={profile.displayName || profile.username}
+                    className="w-full h-full object-cover"
+                    onError={() => {
+                      // Если аватар не найден, показываем инициал
+                      setAvatarError(true);
+                    }}
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-4xl font-semibold text-zinc-500 dark:text-zinc-400">
+                    {(profile.displayName || profile.username)[0].toUpperCase()}
+                  </div>
+                )}
+                {isUploading && (
+                  <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                    <div className="text-white text-sm">Загрузка...</div>
+                  </div>
+                )}
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                  <span className="text-white text-xs opacity-0 group-hover:opacity-100 transition-opacity font-medium">
+                    Изменить
+                  </span>
                 </div>
+              </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/jpg,image/png,image/webp"
+                onChange={handleFileChange}
+                className="hidden"
+              />
+              {uploadError && (
+                <p className="mt-2 text-sm text-red-600 dark:text-red-400 text-center max-w-32">
+                  {uploadError}
+                </p>
               )}
             </div>
 
