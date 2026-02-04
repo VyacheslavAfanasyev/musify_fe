@@ -12,6 +12,8 @@ import {
 import Image from "next/image";
 import TrackUpload from "@/app/components/TrackUpload";
 import AudioPlayer from "@/app/components/AudioPlayer";
+import { VolumeProvider } from "@/app/components/VolumeContext";
+import FloatingPlayer from "@/app/components/FloatingPlayer";
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -204,303 +206,307 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-50 font-sans dark:bg-black">
-      {/* Cover Image */}
-      <div className="relative h-64 w-full bg-gradient-to-r from-zinc-800 to-zinc-900 dark:from-zinc-900 dark:to-black">
-        {profile.coverImageUrl ? (
-          <Image
-            src={profile.coverImageUrl}
-            alt="Cover"
-            fill
-            className="object-cover"
-          />
-        ) : null}
-      </div>
+    <VolumeProvider>
+      <div className="min-h-screen bg-zinc-50 font-sans dark:bg-black pb-20">
+        {/* Cover Image */}
+        <div className="relative h-64 w-full bg-gradient-to-r from-zinc-800 to-zinc-900 dark:from-zinc-900 dark:to-black">
+          {profile.coverImageUrl ? (
+            <Image
+              src={profile.coverImageUrl}
+              alt="Cover"
+              fill
+              className="object-cover"
+            />
+          ) : null}
+        </div>
 
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 -mt-20 pb-12">
-        {/* Profile Header */}
-        <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-lg border border-zinc-200 dark:border-zinc-800 p-6 sm:p-8">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
-            {/* Avatar */}
-            <div className="relative flex-shrink-0">
-              <div
-                className="relative w-32 h-32 rounded-full border-4 border-white dark:border-zinc-900 bg-zinc-200 dark:bg-zinc-800 overflow-hidden cursor-pointer hover:opacity-80 transition-opacity group"
-                onClick={handleAvatarClick}
-              >
-                {!avatarError ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    key={`avatar-${profile.userId}-${avatarVersion}`}
-                    src={`${getAvatarUrl(profile.userId)}?v=${avatarVersion}`}
-                    alt={profile.displayName || profile.username}
-                    className="w-full h-full object-cover"
-                    onError={() => {
-                      // Если аватар не найден, показываем инициал
-                      setAvatarError(true);
-                    }}
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center text-4xl font-semibold text-zinc-500 dark:text-zinc-400">
-                    {(profile.displayName || profile.username)[0].toUpperCase()}
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 -mt-20 pb-12">
+          {/* Profile Header */}
+          <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-lg border border-zinc-200 dark:border-zinc-800 p-6 sm:p-8">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
+              {/* Avatar */}
+              <div className="relative flex-shrink-0">
+                <div
+                  className="relative w-32 h-32 rounded-full border-4 border-white dark:border-zinc-900 bg-zinc-200 dark:bg-zinc-800 overflow-hidden cursor-pointer hover:opacity-80 transition-opacity group"
+                  onClick={handleAvatarClick}
+                >
+                  {!avatarError ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      key={`avatar-${profile.userId}-${avatarVersion}`}
+                      src={`${getAvatarUrl(profile.userId)}?v=${avatarVersion}`}
+                      alt={profile.displayName || profile.username}
+                      className="w-full h-full object-cover"
+                      onError={() => {
+                        // Если аватар не найден, показываем инициал
+                        setAvatarError(true);
+                      }}
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-4xl font-semibold text-zinc-500 dark:text-zinc-400">
+                      {(profile.displayName ||
+                        profile.username)[0].toUpperCase()}
+                    </div>
+                  )}
+                  {isUploading && (
+                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                      <div className="text-white text-sm">Загрузка...</div>
+                    </div>
+                  )}
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                    <span className="text-white text-xs opacity-0 group-hover:opacity-100 transition-opacity font-medium">
+                      Изменить
+                    </span>
                   </div>
+                </div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/jpeg,image/jpg,image/png,image/webp"
+                  onChange={handleFileChange}
+                  className="hidden"
+                />
+                {uploadError && (
+                  <p className="mt-2 text-sm text-red-600 dark:text-red-400 text-center max-w-32">
+                    {uploadError}
+                  </p>
                 )}
-                {isUploading && (
-                  <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                    <div className="text-white text-sm">Загрузка...</div>
+              </div>
+
+              {/* Profile Info */}
+              <div className="flex-1 min-w-0">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 relative z-10">
+                  <div>
+                    <h1 className="text-3xl font-bold text-black dark:text-zinc-50 mb-1">
+                      {profile.displayName || profile.username}
+                    </h1>
+                    <p className="text-zinc-600 dark:text-zinc-400 mb-2">
+                      @{profile.username}
+                    </p>
+                    {profile.bio && (
+                      <p className="text-zinc-700 dark:text-zinc-300 mb-2">
+                        {profile.bio}
+                      </p>
+                    )}
+                    {profile.location && (
+                      <p className="text-sm text-zinc-500 dark:text-zinc-500">
+                        📍 {profile.location}
+                      </p>
+                    )}
                   </div>
-                )}
-                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
-                  <span className="text-white text-xs opacity-0 group-hover:opacity-100 transition-opacity font-medium">
-                    Изменить
-                  </span>
+                  <button
+                    onClick={handleLogout}
+                    className="px-4 py-2 rounded-lg bg-red-600 text-white font-medium hover:bg-red-700 transition-colors whitespace-nowrap"
+                  >
+                    Выйти
+                  </button>
                 </div>
               </div>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/jpeg,image/jpg,image/png,image/webp"
-                onChange={handleFileChange}
-                className="hidden"
-              />
-              {uploadError && (
-                <p className="mt-2 text-sm text-red-600 dark:text-red-400 text-center max-w-32">
-                  {uploadError}
-                </p>
+            </div>
+          </div>
+
+          {/* Stats */}
+          {profile.stats && (
+            <div className="mt-6 grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <div className="bg-white dark:bg-zinc-900 rounded-xl shadow border border-zinc-200 dark:border-zinc-800 p-4 text-center">
+                <div className="text-2xl font-bold text-black dark:text-zinc-50">
+                  {profile.stats.tracksCount || 0}
+                </div>
+                <div className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">
+                  Треков
+                </div>
+              </div>
+              <div className="bg-white dark:bg-zinc-900 rounded-xl shadow border border-zinc-200 dark:border-zinc-800 p-4 text-center">
+                <div className="text-2xl font-bold text-black dark:text-zinc-50">
+                  {profile.stats.followersCount || 0}
+                </div>
+                <div className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">
+                  Подписчиков
+                </div>
+              </div>
+              <div className="bg-white dark:bg-zinc-900 rounded-xl shadow border border-zinc-200 dark:border-zinc-800 p-4 text-center">
+                <div className="text-2xl font-bold text-black dark:text-zinc-50">
+                  {profile.stats.followingCount || 0}
+                </div>
+                <div className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">
+                  Подписок
+                </div>
+              </div>
+              <div className="bg-white dark:bg-zinc-900 rounded-xl shadow border border-zinc-200 dark:border-zinc-800 p-4 text-center">
+                <div className="text-2xl font-bold text-black dark:text-zinc-50">
+                  {profile.stats.totalPlays || 0}
+                </div>
+                <div className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">
+                  Прослушиваний
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Genres and Instruments */}
+          {(profile.genres && profile.genres.length > 0) ||
+          (profile.instruments && profile.instruments.length > 0) ? (
+            <div className="mt-6 bg-white dark:bg-zinc-900 rounded-xl shadow border border-zinc-200 dark:border-zinc-800 p-6">
+              {profile.genres && profile.genres.length > 0 && (
+                <div className="mb-4">
+                  <h2 className="text-lg font-semibold text-black dark:text-zinc-50 mb-2">
+                    Жанры
+                  </h2>
+                  <div className="flex flex-wrap gap-2">
+                    {profile.genres.map((genre, index) => (
+                      <span
+                        key={index}
+                        className="px-3 py-1 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 text-sm"
+                      >
+                        {genre}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {profile.instruments && profile.instruments.length > 0 && (
+                <div>
+                  <h2 className="text-lg font-semibold text-black dark:text-zinc-50 mb-2">
+                    Инструменты
+                  </h2>
+                  <div className="flex flex-wrap gap-2">
+                    {profile.instruments.map((instrument, index) => (
+                      <span
+                        key={index}
+                        className="px-3 py-1 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 text-sm"
+                      >
+                        {instrument}
+                      </span>
+                    ))}
+                  </div>
+                </div>
               )}
             </div>
+          ) : null}
 
-            {/* Profile Info */}
-            <div className="flex-1 min-w-0">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 relative z-10">
-                <div>
-                  <h1 className="text-3xl font-bold text-black dark:text-zinc-50 mb-1">
-                    {profile.displayName || profile.username}
-                  </h1>
-                  <p className="text-zinc-600 dark:text-zinc-400 mb-2">
-                    @{profile.username}
-                  </p>
-                  {profile.bio && (
-                    <p className="text-zinc-700 dark:text-zinc-300 mb-2">
-                      {profile.bio}
-                    </p>
+          {/* Social Links */}
+          {profile.socialLinks &&
+            (profile.socialLinks.youtube ||
+              profile.socialLinks.vk ||
+              profile.socialLinks.telegram) && (
+              <div className="mt-6 bg-white dark:bg-zinc-900 rounded-xl shadow border border-zinc-200 dark:border-zinc-800 p-6">
+                <h2 className="text-lg font-semibold text-black dark:text-zinc-50 mb-4">
+                  Социальные сети
+                </h2>
+                <div className="flex flex-wrap gap-4">
+                  {profile.socialLinks.youtube && (
+                    <a
+                      href={profile.socialLinks.youtube}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-red-600 dark:text-red-400 hover:underline"
+                    >
+                      YouTube
+                    </a>
                   )}
-                  {profile.location && (
-                    <p className="text-sm text-zinc-500 dark:text-zinc-500">
-                      📍 {profile.location}
-                    </p>
+                  {profile.socialLinks.vk && (
+                    <a
+                      href={profile.socialLinks.vk}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 dark:text-blue-400 hover:underline"
+                    >
+                      VK
+                    </a>
+                  )}
+                  {profile.socialLinks.telegram && (
+                    <a
+                      href={`https://t.me/${profile.socialLinks.telegram.replace(
+                        "@",
+                        ""
+                      )}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-500 dark:text-blue-400 hover:underline"
+                    >
+                      Telegram
+                    </a>
                   )}
                 </div>
-                <button
-                  onClick={handleLogout}
-                  className="px-4 py-2 rounded-lg bg-red-600 text-white font-medium hover:bg-red-700 transition-colors whitespace-nowrap"
-                >
-                  Выйти
-                </button>
               </div>
-            </div>
-          </div>
-        </div>
+            )}
 
-        {/* Stats */}
-        {profile.stats && (
-          <div className="mt-6 grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <div className="bg-white dark:bg-zinc-900 rounded-xl shadow border border-zinc-200 dark:border-zinc-800 p-4 text-center">
-              <div className="text-2xl font-bold text-black dark:text-zinc-50">
-                {profile.stats.tracksCount || 0}
-              </div>
-              <div className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">
-                Треков
-              </div>
-            </div>
-            <div className="bg-white dark:bg-zinc-900 rounded-xl shadow border border-zinc-200 dark:border-zinc-800 p-4 text-center">
-              <div className="text-2xl font-bold text-black dark:text-zinc-50">
-                {profile.stats.followersCount || 0}
-              </div>
-              <div className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">
-                Подписчиков
-              </div>
-            </div>
-            <div className="bg-white dark:bg-zinc-900 rounded-xl shadow border border-zinc-200 dark:border-zinc-800 p-4 text-center">
-              <div className="text-2xl font-bold text-black dark:text-zinc-50">
-                {profile.stats.followingCount || 0}
-              </div>
-              <div className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">
-                Подписок
-              </div>
-            </div>
-            <div className="bg-white dark:bg-zinc-900 rounded-xl shadow border border-zinc-200 dark:border-zinc-800 p-4 text-center">
-              <div className="text-2xl font-bold text-black dark:text-zinc-50">
-                {profile.stats.totalPlays || 0}
-              </div>
-              <div className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">
-                Прослушиваний
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Genres and Instruments */}
-        {(profile.genres && profile.genres.length > 0) ||
-        (profile.instruments && profile.instruments.length > 0) ? (
+          {/* Role */}
           <div className="mt-6 bg-white dark:bg-zinc-900 rounded-xl shadow border border-zinc-200 dark:border-zinc-800 p-6">
-            {profile.genres && profile.genres.length > 0 && (
-              <div className="mb-4">
-                <h2 className="text-lg font-semibold text-black dark:text-zinc-50 mb-2">
-                  Жанры
-                </h2>
-                <div className="flex flex-wrap gap-2">
-                  {profile.genres.map((genre, index) => (
-                    <span
-                      key={index}
-                      className="px-3 py-1 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 text-sm"
-                    >
-                      {genre}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-            {profile.instruments && profile.instruments.length > 0 && (
+            <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-lg font-semibold text-black dark:text-zinc-50 mb-2">
-                  Инструменты
+                <h2 className="text-lg font-semibold text-black dark:text-zinc-50 mb-1">
+                  Роль
                 </h2>
-                <div className="flex flex-wrap gap-2">
-                  {profile.instruments.map((instrument, index) => (
-                    <span
-                      key={index}
-                      className="px-3 py-1 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 text-sm"
-                    >
-                      {instrument}
-                    </span>
-                  ))}
-                </div>
+                <p className="text-zinc-600 dark:text-zinc-400 capitalize">
+                  {profile.role === "musician" ? "Музыкант" : "Слушатель"}
+                </p>
+              </div>
+              <a
+                href="/change-password"
+                className="px-4 py-2 rounded-lg bg-foreground text-background font-medium hover:bg-[#383838] dark:hover:bg-[#ccc] transition-colors"
+              >
+                Изменить пароль
+              </a>
+            </div>
+          </div>
+
+          {/* Tracks Section */}
+          <div className="mt-6">
+            <div className="mb-4">
+              <h2 className="text-2xl font-bold text-black dark:text-zinc-50">
+                Мои треки
+              </h2>
+              <p className="text-zinc-600 dark:text-zinc-400 mt-1">
+                {tracks.length > 0
+                  ? `${tracks.length} ${
+                      tracks.length === 1
+                        ? "трек"
+                        : tracks.length < 5
+                        ? "трека"
+                        : "треков"
+                    }`
+                  : "Пока нет загруженных треков"}
+              </p>
+            </div>
+
+            {/* Track Upload */}
+            <div className="mb-6">
+              <TrackUpload
+                userId={profile.userId}
+                onUploadSuccess={handleTrackUploadSuccess}
+              />
+            </div>
+
+            {/* Tracks List */}
+            {isLoadingTracks ? (
+              <div className="bg-white dark:bg-zinc-900 rounded-xl shadow border border-zinc-200 dark:border-zinc-800 p-8 text-center">
+                <p className="text-zinc-600 dark:text-zinc-400">
+                  Загрузка треков...
+                </p>
+              </div>
+            ) : tracks.length > 0 ? (
+              <div className="space-y-4">
+                {tracks.map((track) => (
+                  <AudioPlayer
+                    key={track.fileId}
+                    trackId={track.fileId}
+                    trackName={track.originalName.replace(/\.[^/.]+$/, "")}
+                    duration={track.metadata?.duration}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="bg-white dark:bg-zinc-900 rounded-xl shadow border border-zinc-200 dark:border-zinc-800 p-8 text-center">
+                <p className="text-zinc-600 dark:text-zinc-400">
+                  Загрузите свой первый трек, чтобы начать делиться музыкой!
+                </p>
               </div>
             )}
           </div>
-        ) : null}
-
-        {/* Social Links */}
-        {profile.socialLinks &&
-          (profile.socialLinks.youtube ||
-            profile.socialLinks.vk ||
-            profile.socialLinks.telegram) && (
-            <div className="mt-6 bg-white dark:bg-zinc-900 rounded-xl shadow border border-zinc-200 dark:border-zinc-800 p-6">
-              <h2 className="text-lg font-semibold text-black dark:text-zinc-50 mb-4">
-                Социальные сети
-              </h2>
-              <div className="flex flex-wrap gap-4">
-                {profile.socialLinks.youtube && (
-                  <a
-                    href={profile.socialLinks.youtube}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-red-600 dark:text-red-400 hover:underline"
-                  >
-                    YouTube
-                  </a>
-                )}
-                {profile.socialLinks.vk && (
-                  <a
-                    href={profile.socialLinks.vk}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-600 dark:text-blue-400 hover:underline"
-                  >
-                    VK
-                  </a>
-                )}
-                {profile.socialLinks.telegram && (
-                  <a
-                    href={`https://t.me/${profile.socialLinks.telegram.replace(
-                      "@",
-                      ""
-                    )}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-500 dark:text-blue-400 hover:underline"
-                  >
-                    Telegram
-                  </a>
-                )}
-              </div>
-            </div>
-          )}
-
-        {/* Role */}
-        <div className="mt-6 bg-white dark:bg-zinc-900 rounded-xl shadow border border-zinc-200 dark:border-zinc-800 p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-lg font-semibold text-black dark:text-zinc-50 mb-1">
-                Роль
-              </h2>
-              <p className="text-zinc-600 dark:text-zinc-400 capitalize">
-                {profile.role === "musician" ? "Музыкант" : "Слушатель"}
-              </p>
-            </div>
-            <a
-              href="/change-password"
-              className="px-4 py-2 rounded-lg bg-foreground text-background font-medium hover:bg-[#383838] dark:hover:bg-[#ccc] transition-colors"
-            >
-              Изменить пароль
-            </a>
-          </div>
         </div>
-
-        {/* Tracks Section */}
-        <div className="mt-6">
-          <div className="mb-4">
-            <h2 className="text-2xl font-bold text-black dark:text-zinc-50">
-              Мои треки
-            </h2>
-            <p className="text-zinc-600 dark:text-zinc-400 mt-1">
-              {tracks.length > 0
-                ? `${tracks.length} ${
-                    tracks.length === 1
-                      ? "трек"
-                      : tracks.length < 5
-                      ? "трека"
-                      : "треков"
-                  }`
-                : "Пока нет загруженных треков"}
-            </p>
-          </div>
-
-          {/* Track Upload */}
-          <div className="mb-6">
-            <TrackUpload
-              userId={profile.userId}
-              onUploadSuccess={handleTrackUploadSuccess}
-            />
-          </div>
-
-          {/* Tracks List */}
-          {isLoadingTracks ? (
-            <div className="bg-white dark:bg-zinc-900 rounded-xl shadow border border-zinc-200 dark:border-zinc-800 p-8 text-center">
-              <p className="text-zinc-600 dark:text-zinc-400">
-                Загрузка треков...
-              </p>
-            </div>
-          ) : tracks.length > 0 ? (
-            <div className="space-y-4">
-              {tracks.map((track) => (
-                <AudioPlayer
-                  key={track.fileId}
-                  trackId={track.fileId}
-                  trackName={track.originalName.replace(/\.[^/.]+$/, "")}
-                  duration={track.metadata?.duration}
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="bg-white dark:bg-zinc-900 rounded-xl shadow border border-zinc-200 dark:border-zinc-800 p-8 text-center">
-              <p className="text-zinc-600 dark:text-zinc-400">
-                Загрузите свой первый трек, чтобы начать делиться музыкой!
-              </p>
-            </div>
-          )}
-        </div>
+        <FloatingPlayer />
       </div>
-    </div>
+    </VolumeProvider>
   );
 }

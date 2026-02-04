@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { getTrackUrl } from "@/lib/media";
+import { useVolume } from "./VolumeContext";
 
 interface AudioPlayerProps {
   trackId: string;
@@ -19,6 +20,7 @@ export default function AudioPlayer({
   const [currentTime, setCurrentTime] = useState(0);
   const [totalDuration, setTotalDuration] = useState(duration || 0);
   const [isLoading, setIsLoading] = useState(false);
+  const { volume, setCurrentTrack } = useVolume();
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -26,15 +28,24 @@ export default function AudioPlayer({
 
     const updateTime = () => setCurrentTime(audio.currentTime);
     const updateDuration = () => setTotalDuration(audio.duration);
-    const handleEnded = () => setIsPlaying(false);
+    const handleEnded = () => {
+      setIsPlaying(false);
+      setCurrentTrack(null);
+    };
     const handleLoadStart = () => setIsLoading(true);
     const handleCanPlay = () => setIsLoading(false);
+    const handlePause = () => {
+      setIsPlaying(false);
+      // Если это текущий трек, очищаем его при паузе (опционально, можно оставить)
+      // setCurrentTrack(null);
+    };
 
     audio.addEventListener("timeupdate", updateTime);
     audio.addEventListener("loadedmetadata", updateDuration);
     audio.addEventListener("ended", handleEnded);
     audio.addEventListener("loadstart", handleLoadStart);
     audio.addEventListener("canplay", handleCanPlay);
+    audio.addEventListener("pause", handlePause);
 
     return () => {
       audio.removeEventListener("timeupdate", updateTime);
@@ -42,8 +53,16 @@ export default function AudioPlayer({
       audio.removeEventListener("ended", handleEnded);
       audio.removeEventListener("loadstart", handleLoadStart);
       audio.removeEventListener("canplay", handleCanPlay);
+      audio.removeEventListener("pause", handlePause);
     };
-  }, []);
+  }, [setCurrentTrack]);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (audio) {
+      audio.volume = volume;
+    }
+  }, [volume]);
 
   const togglePlay = () => {
     const audio = audioRef.current;
@@ -51,10 +70,26 @@ export default function AudioPlayer({
 
     if (isPlaying) {
       audio.pause();
+      setIsPlaying(false);
     } else {
+      // Останавливаем все другие аудио элементы
+      const allAudioElements = document.querySelectorAll("audio");
+      allAudioElements.forEach((el) => {
+        if (el !== audio) {
+          el.pause();
+        }
+      });
+
+      // Устанавливаем текущий трек в контекст
+      setCurrentTrack({
+        trackId,
+        trackName,
+        duration: totalDuration || duration,
+      });
+
       audio.play();
+      setIsPlaying(true);
     }
-    setIsPlaying(!isPlaying);
   };
 
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -78,7 +113,7 @@ export default function AudioPlayer({
   return (
     <div className="bg-white dark:bg-zinc-900 rounded-xl shadow border border-zinc-200 dark:border-zinc-800 p-4">
       <audio ref={audioRef} src={getTrackUrl(trackId)} preload="metadata" />
-      
+
       <div className="flex items-center gap-4">
         {/* Play/Pause Button */}
         <button
@@ -109,11 +144,7 @@ export default function AudioPlayer({
               ></path>
             </svg>
           ) : isPlaying ? (
-            <svg
-              className="w-6 h-6"
-              fill="currentColor"
-              viewBox="0 0 24 24"
-            >
+            <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
               <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" />
             </svg>
           ) : (
@@ -132,7 +163,7 @@ export default function AudioPlayer({
           <p className="text-sm font-medium text-black dark:text-zinc-50 truncate mb-1">
             {trackName}
           </p>
-          
+
           {/* Progress Bar */}
           <div className="flex items-center gap-2">
             <input
@@ -155,4 +186,3 @@ export default function AudioPlayer({
     </div>
   );
 }
-
