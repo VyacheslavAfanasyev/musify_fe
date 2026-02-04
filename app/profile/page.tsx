@@ -6,7 +6,7 @@ import { getUserProfile, UserProfile, logoutUser } from "@/lib/auth";
 import {
   uploadAvatar,
   getAvatarUrl,
-  getUserTracks,
+  getUserAudioFiles,
   TrackFile,
 } from "@/lib/media";
 import Image from "next/image";
@@ -68,12 +68,12 @@ export default function ProfilePage() {
   const loadTracks = async (username: string) => {
     setIsLoadingTracks(true);
     try {
-      const result = await getUserTracks(username);
-      if (result.success && result.data) {
-        setTracks(result.data);
+      const result = await getUserAudioFiles(username);
+      if (result.success && result.audioFiles) {
+        setTracks(result.audioFiles);
       }
     } catch {
-      // Игнорируем ошибки загрузки треков, чтобы не блокировать страницу
+      // Игнорируем ошибки загрузки аудиофайлов, чтобы не блокировать страницу
     } finally {
       setIsLoadingTracks(false);
     }

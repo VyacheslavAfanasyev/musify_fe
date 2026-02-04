@@ -175,6 +175,12 @@ export interface GetUserTracksResponse {
   error?: string;
 }
 
+export interface GetUserAudioFilesResponse {
+  success: boolean;
+  audioFiles?: TrackFile[];
+  error?: string;
+}
+
 /**
  * Загружает аудио трек
  * @param file - Аудио файл для загрузки
@@ -347,6 +353,94 @@ export async function getUserTracks(
       // Используем сообщение об ошибке из ответа или по статусу
       let errorMessage =
         result.error || "Произошла ошибка при получении треков";
+      if (!result.error) {
+        if (response.status === 401) {
+          errorMessage = "Требуется авторизация";
+        } else if (response.status === 404) {
+          errorMessage = "Пользователь не найден";
+        } else if (response.status >= 500) {
+          errorMessage = "Ошибка сервера. Попробуйте позже";
+        }
+      }
+      return {
+        success: false,
+        error: errorMessage,
+      };
+    }
+
+    return result;
+  } catch (err) {
+    // Обрабатываем только реальные сетевые ошибки
+    if (err instanceof TypeError && err.message.includes("fetch")) {
+      return {
+        success: false,
+        error: "Ошибка сети. Проверьте подключение к интернету.",
+      };
+    } else {
+      return {
+        success: false,
+        error: "Произошла неожиданная ошибка. Попробуйте позже.",
+      };
+    }
+  }
+}
+
+/**
+ * Получает список всех аудиофайлов пользователя
+ * @param username - Username пользователя
+ * @returns Promise со списком всех аудиофайлов (включая треки и другие аудиофайлы)
+ */
+export async function getUserAudioFiles(
+  username: string
+): Promise<GetUserAudioFilesResponse> {
+  try {
+    const accessToken = localStorage.getItem("accessToken");
+
+    if (!accessToken) {
+      return {
+        success: false,
+        error: "Требуется авторизация",
+      };
+    }
+
+    const response = await fetch(
+      `${API_BASE_URL}/users/${username}/audio-files`,
+      {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+      }
+    );
+
+    // Пытаемся прочитать ответ как JSON
+    let result: GetUserAudioFilesResponse;
+    try {
+      const jsonData = await response.json();
+      // API возвращает { success: true, audioFiles: [...] }
+      result = jsonData;
+    } catch {
+      // Если не удалось распарсить JSON, обрабатываем по статусу
+      let errorMessage = "Произошла ошибка при получении аудиофайлов";
+      if (response.status === 401) {
+        errorMessage = "Требуется авторизация";
+      } else if (response.status === 404) {
+        errorMessage = "Пользователь не найден";
+      } else if (response.status >= 500) {
+        errorMessage = "Ошибка сервера. Попробуйте позже";
+      }
+      return {
+        success: false,
+        error: errorMessage,
+      };
+    }
+
+    // Проверяем статус ответа и данные
+    if (!response.ok || !result.success) {
+      // Используем сообщение об ошибке из ответа или по статусу
+      let errorMessage =
+        result.error || "Произошла ошибка при получении аудиофайлов";
       if (!result.error) {
         if (response.status === 401) {
           errorMessage = "Требуется авторизация";
