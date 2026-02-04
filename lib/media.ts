@@ -1,4 +1,4 @@
-const API_BASE_URL = "http://localhost:3000";
+import { API_BASE_URL, makeAuthorizedRequest, ApiResponse } from "./api";
 
 /**
  * Получает URL аватара пользователя
@@ -18,8 +18,7 @@ export function getTrackUrl(trackId: string): string {
   return `${API_BASE_URL}/media/track/${trackId}`;
 }
 
-export interface UploadAvatarResponse {
-  success: boolean;
+export interface UploadAvatarResponse extends ApiResponse {
   file?: {
     fileId: string;
     userId: string;
@@ -36,7 +35,6 @@ export interface UploadAvatarResponse {
     };
     createdAt: string;
   };
-  error?: string;
 }
 
 /**
@@ -49,98 +47,33 @@ export async function uploadAvatar(
   file: File,
   userId: string
 ): Promise<UploadAvatarResponse> {
-  try {
-    const accessToken = localStorage.getItem("accessToken");
-
-    if (!accessToken) {
-      return {
-        success: false,
-        error: "Требуется авторизация",
-      };
-    }
-
-    // Проверяем тип файла
-    const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
-    if (!allowedTypes.includes(file.type)) {
-      return {
-        success: false,
-        error: "Неподдерживаемый формат файла. Используйте JPG, PNG или WebP",
-      };
-    }
-
-    // Создаем FormData
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("userId", userId);
-    formData.append("type", "avatar");
-
-    const response = await fetch(`${API_BASE_URL}/media/upload/avatar`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-      body: formData,
-    });
-
-    // Пытаемся прочитать ответ как JSON
-    let result: UploadAvatarResponse;
-    try {
-      result = await response.json();
-    } catch {
-      // Если не удалось распарсить JSON, обрабатываем по статусу
-      let errorMessage = "Произошла ошибка при загрузке аватара";
-      if (response.status === 400) {
-        errorMessage = "Неверный формат файла или данные запроса";
-      } else if (response.status === 401) {
-        errorMessage = "Требуется авторизация";
-      } else if (response.status === 413) {
-        errorMessage = "Файл слишком большой";
-      } else if (response.status >= 500) {
-        errorMessage = "Ошибка сервера. Попробуйте позже";
-      }
-      return {
-        success: false,
-        error: errorMessage,
-      };
-    }
-
-    // Проверяем статус ответа и данные
-    if (!response.ok || !result.success) {
-      // Используем сообщение об ошибке из ответа или по статусу
-      let errorMessage =
-        result.error || "Произошла ошибка при загрузке аватара";
-      if (!result.error) {
-        if (response.status === 400) {
-          errorMessage = "Неверный формат файла или данные запроса";
-        } else if (response.status === 401) {
-          errorMessage = "Требуется авторизация";
-        } else if (response.status === 413) {
-          errorMessage = "Файл слишком большой";
-        } else if (response.status >= 500) {
-          errorMessage = "Ошибка сервера. Попробуйте позже";
-        }
-      }
-      return {
-        success: false,
-        error: errorMessage,
-      };
-    }
-
-    return result;
-  } catch (err) {
-    // Обрабатываем только реальные сетевые ошибки
-    if (err instanceof TypeError && err.message.includes("fetch")) {
-      return {
-        success: false,
-        error: "Ошибка сети. Проверьте подключение к интернету.",
-      };
-    } else {
-      return {
-        success: false,
-        error: "Произошла неожиданная ошибка. Попробуйте позже.",
-      };
-    }
+  // Проверяем тип файла
+  const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
+  if (!allowedTypes.includes(file.type)) {
+    return {
+      success: false,
+      error: "Неподдерживаемый формат файла. Используйте JPG, PNG или WebP",
+    };
   }
+
+  // Создаем FormData
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("userId", userId);
+  formData.append("type", "avatar");
+
+  return makeAuthorizedRequest<UploadAvatarResponse>(
+    `${API_BASE_URL}/media/upload/avatar`,
+    {
+      method: "POST",
+      body: formData,
+      errorHandlers: {
+        400: "Неверный формат файла или данные запроса",
+        413: "Файл слишком большой",
+      },
+      defaultErrorMessage: "Произошла ошибка при загрузке аватара",
+    }
+  );
 }
 
 // Типы для треков
@@ -163,28 +96,19 @@ export interface TrackFile {
   createdAt: string;
 }
 
-export interface UploadTrackResponse {
-  success: boolean;
+export interface UploadTrackResponse extends ApiResponse {
   file?: TrackFile;
-  error?: string;
 }
 
-export interface GetUserTracksResponse {
-  success: boolean;
+export interface GetUserTracksResponse extends ApiResponse {
   data?: TrackFile[];
-  error?: string;
 }
 
-export interface GetUserAudioFilesResponse {
-  success: boolean;
+export interface GetUserAudioFilesResponse extends ApiResponse {
   audioFiles?: TrackFile[];
-  error?: string;
 }
 
-export interface DeleteTrackResponse {
-  success: boolean;
-  error?: string;
-}
+export type DeleteTrackResponse = ApiResponse;
 
 /**
  * Загружает аудио трек
@@ -196,110 +120,42 @@ export async function uploadTrack(
   file: File,
   userId: string
 ): Promise<UploadTrackResponse> {
-  try {
-    const accessToken = localStorage.getItem("accessToken");
-
-    if (!accessToken) {
-      return {
-        success: false,
-        error: "Требуется авторизация",
-      };
-    }
-
-    // Проверяем тип файла
-    const allowedTypes = [
-      "audio/mpeg",
-      "audio/mp3",
-      "audio/wav",
-      "audio/wave",
-      "audio/ogg",
-      "audio/m4a",
-      "audio/x-m4a",
-    ];
-    if (!allowedTypes.includes(file.type)) {
-      return {
-        success: false,
-        error: "Неподдерживаемый формат файла. Используйте MP3, WAV, OGG или M4A",
-      };
-    }
-
-    // Создаем FormData
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("userId", userId);
-    formData.append("type", "track");
-
-    const response = await fetch(`${API_BASE_URL}/media/upload/track`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-      body: formData,
-    });
-
-    // Пытаемся прочитать ответ как JSON
-    let result: UploadTrackResponse;
-    try {
-      result = await response.json();
-    } catch {
-      // Если не удалось распарсить JSON, обрабатываем по статусу
-      let errorMessage = "Произошла ошибка при загрузке трека";
-      if (response.status === 400) {
-        errorMessage = "Неверный формат файла или данные запроса";
-      } else if (response.status === 401) {
-        errorMessage = "Требуется авторизация";
-      } else if (response.status === 413) {
-        errorMessage = "Файл слишком большой";
-      } else if (response.status === 429) {
-        errorMessage = "Превышен лимит запросов. Попробуйте позже";
-      } else if (response.status >= 500) {
-        errorMessage = "Ошибка сервера. Попробуйте позже";
-      }
-      return {
-        success: false,
-        error: errorMessage,
-      };
-    }
-
-    // Проверяем статус ответа и данные
-    if (!response.ok || !result.success) {
-      // Используем сообщение об ошибке из ответа или по статусу
-      let errorMessage =
-        result.error || "Произошла ошибка при загрузке трека";
-      if (!result.error) {
-        if (response.status === 400) {
-          errorMessage = "Неверный формат файла или данные запроса";
-        } else if (response.status === 401) {
-          errorMessage = "Требуется авторизация";
-        } else if (response.status === 413) {
-          errorMessage = "Файл слишком большой";
-        } else if (response.status === 429) {
-          errorMessage = "Превышен лимит запросов. Попробуйте позже";
-        } else if (response.status >= 500) {
-          errorMessage = "Ошибка сервера. Попробуйте позже";
-        }
-      }
-      return {
-        success: false,
-        error: errorMessage,
-      };
-    }
-
-    return result;
-  } catch (err) {
-    // Обрабатываем только реальные сетевые ошибки
-    if (err instanceof TypeError && err.message.includes("fetch")) {
-      return {
-        success: false,
-        error: "Ошибка сети. Проверьте подключение к интернету.",
-      };
-    } else {
-      return {
-        success: false,
-        error: "Произошла неожиданная ошибка. Попробуйте позже.",
-      };
-    }
+  // Проверяем тип файла
+  const allowedTypes = [
+    "audio/mpeg",
+    "audio/mp3",
+    "audio/wav",
+    "audio/wave",
+    "audio/ogg",
+    "audio/m4a",
+    "audio/x-m4a",
+  ];
+  if (!allowedTypes.includes(file.type)) {
+    return {
+      success: false,
+      error: "Неподдерживаемый формат файла. Используйте MP3, WAV, OGG или M4A",
+    };
   }
+
+  // Создаем FormData
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("userId", userId);
+  formData.append("type", "track");
+
+  return makeAuthorizedRequest<UploadTrackResponse>(
+    `${API_BASE_URL}/media/upload/track`,
+    {
+      method: "POST",
+      body: formData,
+      errorHandlers: {
+        400: "Неверный формат файла или данные запроса",
+        413: "Файл слишком большой",
+        429: "Превышен лимит запросов. Попробуйте позже",
+      },
+      defaultErrorMessage: "Произошла ошибка при загрузке трека",
+    }
+  );
 }
 
 /**
@@ -310,84 +166,16 @@ export async function uploadTrack(
 export async function getUserTracks(
   username: string
 ): Promise<GetUserTracksResponse> {
-  try {
-    const accessToken = localStorage.getItem("accessToken");
-
-    if (!accessToken) {
-      return {
-        success: false,
-        error: "Требуется авторизация",
-      };
+  return makeAuthorizedRequest<GetUserTracksResponse>(
+    `${API_BASE_URL}/users/${username}/tracks`,
+    {
+      method: "GET",
+      errorHandlers: {
+        404: "Пользователь не найден",
+      },
+      defaultErrorMessage: "Произошла ошибка при получении треков",
     }
-
-    const response = await fetch(
-      `${API_BASE_URL}/users/${username}/tracks`,
-      {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
-        },
-      }
-    );
-
-    // Пытаемся прочитать ответ как JSON
-    let result: GetUserTracksResponse;
-    try {
-      const jsonData = await response.json();
-      // API возвращает { success: true, data: [...] }
-      result = jsonData;
-    } catch {
-      // Если не удалось распарсить JSON, обрабатываем по статусу
-      let errorMessage = "Произошла ошибка при получении треков";
-      if (response.status === 401) {
-        errorMessage = "Требуется авторизация";
-      } else if (response.status === 404) {
-        errorMessage = "Пользователь не найден";
-      } else if (response.status >= 500) {
-        errorMessage = "Ошибка сервера. Попробуйте позже";
-      }
-      return {
-        success: false,
-        error: errorMessage,
-      };
-    }
-
-    // Проверяем статус ответа и данные
-    if (!response.ok || !result.success) {
-      // Используем сообщение об ошибке из ответа или по статусу
-      let errorMessage =
-        result.error || "Произошла ошибка при получении треков";
-      if (!result.error) {
-        if (response.status === 401) {
-          errorMessage = "Требуется авторизация";
-        } else if (response.status === 404) {
-          errorMessage = "Пользователь не найден";
-        } else if (response.status >= 500) {
-          errorMessage = "Ошибка сервера. Попробуйте позже";
-        }
-      }
-      return {
-        success: false,
-        error: errorMessage,
-      };
-    }
-
-    return result;
-  } catch (err) {
-    // Обрабатываем только реальные сетевые ошибки
-    if (err instanceof TypeError && err.message.includes("fetch")) {
-      return {
-        success: false,
-        error: "Ошибка сети. Проверьте подключение к интернету.",
-      };
-    } else {
-      return {
-        success: false,
-        error: "Произошла неожиданная ошибка. Попробуйте позже.",
-      };
-    }
-  }
+  );
 }
 
 /**
@@ -398,89 +186,16 @@ export async function getUserTracks(
 export async function getUserAudioFiles(
   username: string
 ): Promise<GetUserAudioFilesResponse> {
-  try {
-    const accessToken = localStorage.getItem("accessToken");
-
-    if (!accessToken) {
-      return {
-        success: false,
-        error: "Требуется авторизация",
-      };
+  return makeAuthorizedRequest<GetUserAudioFilesResponse>(
+    `${API_BASE_URL}/users/${username}/audio-files`,
+    {
+      method: "GET",
+      errorHandlers: {
+        404: "Пользователь не найден",
+      },
+      defaultErrorMessage: "Произошла ошибка при получении аудиофайлов",
     }
-
-    const response = await fetch(
-      `${API_BASE_URL}/users/${username}/audio-files`,
-      {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
-        },
-      }
-    );
-
-    // Пытаемся прочитать ответ как JSON
-    let result: GetUserAudioFilesResponse;
-    try {
-      const jsonData = await response.json();
-      // API возвращает { success: true, audioFiles: [...] }
-      result = jsonData;
-    } catch {
-      // Если не удалось распарсить JSON, обрабатываем по статусу
-      let errorMessage = "Произошла ошибка при получении аудиофайлов";
-      if (response.status === 401) {
-        errorMessage = "Требуется авторизация";
-      } else if (response.status === 404) {
-        errorMessage = "Пользователь не найден";
-      } else if (response.status >= 500) {
-        errorMessage = "Ошибка сервера. Попробуйте позже";
-      }
-      return {
-        success: false,
-        error: errorMessage,
-      };
-    }
-
-    // Проверяем статус ответа и данные
-    if (!response.ok || !result.success) {
-      // Используем сообщение об ошибке из ответа или по статусу
-      let errorMessage =
-        result.error || "Произошла ошибка при получении аудиофайлов";
-      if (!result.error) {
-        if (response.status === 401) {
-          errorMessage = "Требуется авторизация";
-        } else if (response.status === 404) {
-          errorMessage = "Пользователь не найден";
-        } else if (response.status >= 500) {
-          errorMessage = "Ошибка сервера. Попробуйте позже";
-        }
-      }
-      return {
-        success: false,
-        error: errorMessage,
-      };
-    }
-
-    return result;
-  } catch (err) {
-    // Обрабатываем только реальные сетевые ошибки
-    if (err instanceof TypeError && err.message.includes("fetch")) {
-      return {
-        success: false,
-        error: "Ошибка сети. Проверьте подключение к интернету.",
-      };
-    } else {
-      return {
-        success: false,
-        error: "Произошла неожиданная ошибка. Попробуйте позже.",
-      };
-    }
-  }
-}
-
-export interface DeleteTrackResponse {
-  success: boolean;
-  error?: string;
+  );
 }
 
 /**
@@ -491,77 +206,14 @@ export interface DeleteTrackResponse {
 export async function deleteTrack(
   trackId: string
 ): Promise<DeleteTrackResponse> {
-  try {
-    const accessToken = localStorage.getItem("accessToken");
-
-    if (!accessToken) {
-      return {
-        success: false,
-        error: "Требуется авторизация",
-      };
-    }
-
-    const response = await fetch(`${API_BASE_URL}/media/track/${trackId}`, {
+  return makeAuthorizedRequest<DeleteTrackResponse>(
+    `${API_BASE_URL}/media/track/${trackId}`,
+    {
       method: "DELETE",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${accessToken}`,
+      errorHandlers: {
+        404: "Трек не найден",
       },
-    });
-
-    // Пытаемся прочитать ответ как JSON
-    let result: DeleteTrackResponse;
-    try {
-      result = await response.json();
-    } catch {
-      // Если не удалось распарсить JSON, обрабатываем по статусу
-      let errorMessage = "Произошла ошибка при удалении трека";
-      if (response.status === 401) {
-        errorMessage = "Требуется авторизация";
-      } else if (response.status === 404) {
-        errorMessage = "Трек не найден";
-      } else if (response.status >= 500) {
-        errorMessage = "Ошибка сервера. Попробуйте позже";
-      }
-      return {
-        success: false,
-        error: errorMessage,
-      };
+      defaultErrorMessage: "Произошла ошибка при удалении трека",
     }
-
-    // Проверяем статус ответа и данные
-    if (!response.ok || !result.success) {
-      // Используем сообщение об ошибке из ответа или по статусу
-      let errorMessage =
-        result.error || "Произошла ошибка при удалении трека";
-      if (!result.error) {
-        if (response.status === 401) {
-          errorMessage = "Требуется авторизация";
-        } else if (response.status === 404) {
-          errorMessage = "Трек не найден";
-        } else if (response.status >= 500) {
-          errorMessage = "Ошибка сервера. Попробуйте позже";
-        }
-      }
-      return {
-        success: false,
-        error: errorMessage,
-      };
-    }
-
-    return result;
-  } catch (err) {
-    // Обрабатываем только реальные сетевые ошибки
-    if (err instanceof TypeError && err.message.includes("fetch")) {
-      return {
-        success: false,
-        error: "Ошибка сети. Проверьте подключение к интернету.",
-      };
-    } else {
-      return {
-        success: false,
-        error: "Произошла неожиданная ошибка. Попробуйте позже.",
-      };
-    }
-  }
+  );
 }

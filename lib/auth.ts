@@ -1,4 +1,9 @@
-const API_BASE_URL = "http://localhost:3000";
+import {
+  API_BASE_URL,
+  makeRequest,
+  makeAuthorizedRequest,
+  ApiResponse,
+} from "./api";
 
 // Общие типы
 export interface User {
@@ -8,12 +13,10 @@ export interface User {
   role: string;
 }
 
-export interface AuthResponse {
-  success: boolean;
+export interface AuthResponse extends ApiResponse {
   user?: User;
   accessToken?: string;
   refreshToken?: string;
-  error?: string;
 }
 
 export interface RegisterRequest {
@@ -38,10 +41,7 @@ export interface LogoutRequest {
   refreshToken: string;
 }
 
-export interface LogoutResponse {
-  success: boolean;
-  error?: string;
-}
+export type LogoutResponse = ApiResponse;
 
 export interface ChangePasswordRequest {
   userId: string;
@@ -49,10 +49,7 @@ export interface ChangePasswordRequest {
   newPassword: string;
 }
 
-export interface ChangePasswordResponse {
-  success: boolean;
-  error?: string;
-}
+export type ChangePasswordResponse = ApiResponse;
 
 // Типы для профиля пользователя
 export interface UserProfile {
@@ -88,10 +85,8 @@ export interface UserProfile {
   updatedAt: string;
 }
 
-export interface UserProfileResponse {
-  success: boolean;
+export interface UserProfileResponse extends ApiResponse {
   user?: UserProfile;
-  error?: string;
 }
 
 /**
@@ -126,74 +121,16 @@ function clearUserData() {
 export async function registerUser(
   data: RegisterRequest
 ): Promise<AuthResponse> {
-  try {
-    const response = await fetch(`${API_BASE_URL}/auth/register`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(data),
-    });
-
-    // Пытаемся прочитать ответ как JSON
-    let result: AuthResponse;
-    try {
-      result = await response.json();
-    } catch {
-      // Если не удалось распарсить JSON, обрабатываем по статусу
-      let errorMessage = "Произошла ошибка при регистрации";
-      if (response.status === 404) {
-        errorMessage = "Пользователь не найден";
-      } else if (response.status === 400) {
-        errorMessage = "Неверные данные для регистрации";
-      } else if (response.status === 409) {
-        errorMessage = "Пользователь с таким email или username уже существует";
-      } else if (response.status >= 500) {
-        errorMessage = "Ошибка сервера. Попробуйте позже";
-      }
-      return {
-        success: false,
-        error: errorMessage,
-      };
-    }
-
-    // Проверяем статус ответа и данные
-    if (!response.ok || !result.success) {
-      // Используем сообщение об ошибке из ответа или по статусу
-      let errorMessage = result.error || "Произошла ошибка при регистрации";
-      if (!result.error) {
-        if (response.status === 404) {
-          errorMessage = "Пользователь не найден";
-        } else if (response.status === 400) {
-          errorMessage = "Неверные данные для регистрации";
-        } else if (response.status === 409) {
-          errorMessage =
-            "Пользователь с таким email или username уже существует";
-        } else if (response.status >= 500) {
-          errorMessage = "Ошибка сервера. Попробуйте позже";
-        }
-      }
-      return {
-        success: false,
-        error: errorMessage,
-      };
-    }
-
-    return result;
-  } catch (err) {
-    // Обрабатываем только реальные сетевые ошибки
-    if (err instanceof TypeError && err.message.includes("fetch")) {
-      return {
-        success: false,
-        error: "Ошибка сети. Проверьте подключение к интернету.",
-      };
-    } else {
-      return {
-        success: false,
-        error: "Произошла неожиданная ошибка. Попробуйте позже.",
-      };
-    }
-  }
+  return makeRequest<AuthResponse>(`${API_BASE_URL}/auth/register`, {
+    method: "POST",
+    body: JSON.stringify(data),
+    errorHandlers: {
+      400: "Неверные данные для регистрации",
+      404: "Пользователь не найден",
+      409: "Пользователь с таким email или username уже существует",
+    },
+    defaultErrorMessage: "Произошла ошибка при регистрации",
+  });
 }
 
 /**
@@ -202,78 +139,28 @@ export async function registerUser(
  * @returns Promise с токенами и данными пользователя
  */
 export async function loginUser(data: LoginRequest): Promise<AuthResponse> {
-  try {
-    const response = await fetch(`${API_BASE_URL}/auth/login`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(data),
-    });
+  const result = await makeRequest<AuthResponse>(`${API_BASE_URL}/auth/login`, {
+    method: "POST",
+    body: JSON.stringify(data),
+    errorHandlers: {
+      400: "Неверные данные для входа",
+      401: "Неверный email или пароль",
+      404: "Пользователь не найден",
+    },
+    defaultErrorMessage: "Произошла ошибка при входе",
+  });
 
-    // Пытаемся прочитать ответ как JSON
-    let result: AuthResponse;
-    try {
-      result = await response.json();
-    } catch {
-      // Если не удалось распарсить JSON, обрабатываем по статусу
-      let errorMessage = "Произошла ошибка при входе";
-      if (response.status === 404) {
-        errorMessage = "Пользователь не найден";
-      } else if (response.status === 400) {
-        errorMessage = "Неверные данные для входа";
-      } else if (response.status === 401) {
-        errorMessage = "Неверный email или пароль";
-      } else if (response.status >= 500) {
-        errorMessage = "Ошибка сервера. Попробуйте позже";
-      }
-      return {
-        success: false,
-        error: errorMessage,
-      };
-    }
-
-    // Проверяем статус ответа и данные
-    if (!response.ok || !result.success) {
-      // Используем сообщение об ошибке из ответа или по статусу
-      let errorMessage = result.error || "Произошла ошибка при входе";
-      if (!result.error) {
-        if (response.status === 404) {
-          errorMessage = "Пользователь не найден";
-        } else if (response.status === 400) {
-          errorMessage = "Неверные данные для входа";
-        } else if (response.status === 401) {
-          errorMessage = "Неверный email или пароль";
-        } else if (response.status >= 500) {
-          errorMessage = "Ошибка сервера. Попробуйте позже";
-        }
-      }
-      return {
-        success: false,
-        error: errorMessage,
-      };
-    }
-
-    // Успешный вход - сохраняем токены и данные пользователя
-    if (result.user && result.accessToken && result.refreshToken) {
-      saveUserData(result.user, result.accessToken, result.refreshToken);
-    }
-
-    return result;
-  } catch (err) {
-    // Обрабатываем только реальные сетевые ошибки
-    if (err instanceof TypeError && err.message.includes("fetch")) {
-      return {
-        success: false,
-        error: "Ошибка сети. Проверьте подключение к интернету.",
-      };
-    } else {
-      return {
-        success: false,
-        error: "Произошла неожиданная ошибка. Попробуйте позже.",
-      };
-    }
+  // Успешный вход - сохраняем токены и данные пользователя
+  if (
+    result.success &&
+    result.user &&
+    result.accessToken &&
+    result.refreshToken
+  ) {
+    saveUserData(result.user, result.accessToken, result.refreshToken);
   }
+
+  return result;
 }
 
 /**
@@ -294,77 +181,30 @@ export async function refreshTokens(
     };
   }
 
-  try {
-    const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
+  const result = await makeRequest<RefreshTokenResponse>(
+    `${API_BASE_URL}/auth/refresh`,
+    {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
+      body: JSON.stringify({ refreshToken: token }),
+      errorHandlers: {
+        400: "Неверный формат запроса",
+        401: "Refresh token недействителен или истек",
       },
-      body: JSON.stringify({
-        refreshToken: token,
-      }),
-    });
-
-    // Пытаемся прочитать ответ как JSON
-    let data: RefreshTokenResponse;
-    try {
-      data = await response.json();
-    } catch {
-      // Если не удалось распарсить JSON, обрабатываем по статусу
-      let errorMessage = "Произошла ошибка при обновлении токенов";
-      if (response.status === 401) {
-        errorMessage = "Refresh token недействителен или истек";
-      } else if (response.status === 400) {
-        errorMessage = "Неверный формат запроса";
-      } else if (response.status >= 500) {
-        errorMessage = "Ошибка сервера. Попробуйте позже";
-      }
-      return {
-        success: false,
-        error: errorMessage,
-      };
+      defaultErrorMessage: "Произошла ошибка при обновлении токенов",
     }
+  );
 
-    // Проверяем статус ответа и данные
-    if (!response.ok || !data.success) {
-      // Используем сообщение об ошибке из ответа или по статусу
-      let errorMessage =
-        data.error || "Произошла ошибка при обновлении токенов";
-      if (!data.error) {
-        if (response.status === 401) {
-          errorMessage = "Refresh token недействителен или истек";
-        } else if (response.status === 400) {
-          errorMessage = "Неверный формат запроса";
-        } else if (response.status >= 500) {
-          errorMessage = "Ошибка сервера. Попробуйте позже";
-        }
-      }
-      return {
-        success: false,
-        error: errorMessage,
-      };
-    }
-
-    // Успешное обновление токенов
-    if (data.user && data.accessToken && data.refreshToken) {
-      saveUserData(data.user, data.accessToken, data.refreshToken);
-    }
-
-    return data;
-  } catch (err) {
-    // Обрабатываем только реальные сетевые ошибки
-    if (err instanceof TypeError && err.message.includes("fetch")) {
-      return {
-        success: false,
-        error: "Ошибка сети. Проверьте подключение к интернету.",
-      };
-    } else {
-      return {
-        success: false,
-        error: "Произошла неожиданная ошибка. Попробуйте позже.",
-      };
-    }
+  // Успешное обновление токенов
+  if (
+    result.success &&
+    result.user &&
+    result.accessToken &&
+    result.refreshToken
+  ) {
+    saveUserData(result.user, result.accessToken, result.refreshToken);
   }
+
+  return result;
 }
 
 /**
@@ -387,80 +227,23 @@ export async function logoutUser(
     };
   }
 
-  try {
-    const response = await fetch(`${API_BASE_URL}/auth/logout`, {
+  const result = await makeRequest<LogoutResponse>(
+    `${API_BASE_URL}/auth/logout`,
+    {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
+      body: JSON.stringify({ refreshToken: token }),
+      errorHandlers: {
+        400: "Неверный формат запроса",
+        401: "Refresh token недействителен",
       },
-      body: JSON.stringify({
-        refreshToken: token,
-      }),
-    });
-
-    // Пытаемся прочитать ответ как JSON
-    let result: LogoutResponse;
-    try {
-      result = await response.json();
-    } catch {
-      // Если не удалось распарсить JSON, обрабатываем по статусу
-      let errorMessage = "Произошла ошибка при выходе";
-      if (response.status === 400) {
-        errorMessage = "Неверный формат запроса";
-      } else if (response.status === 401) {
-        errorMessage = "Refresh token недействителен";
-      } else if (response.status >= 500) {
-        errorMessage = "Ошибка сервера. Попробуйте позже";
-      }
-      // Даже при ошибке очищаем localStorage
-      clearUserData();
-      return {
-        success: false,
-        error: errorMessage,
-      };
+      defaultErrorMessage: "Произошла ошибка при выходе",
     }
+  );
 
-    // Проверяем статус ответа и данные
-    if (!response.ok || !result.success) {
-      // Используем сообщение об ошибке из ответа или по статусу
-      let errorMessage = result.error || "Произошла ошибка при выходе";
-      if (!result.error) {
-        if (response.status === 400) {
-          errorMessage = "Неверный формат запроса";
-        } else if (response.status === 401) {
-          errorMessage = "Refresh token недействителен";
-        } else if (response.status >= 500) {
-          errorMessage = "Ошибка сервера. Попробуйте позже";
-        }
-      }
-      // Даже при ошибке очищаем localStorage
-      clearUserData();
-      return {
-        success: false,
-        error: errorMessage,
-      };
-    }
+  // Даже при ошибке очищаем localStorage
+  clearUserData();
 
-    // Успешный выход - очищаем localStorage
-    clearUserData();
-
-    return result;
-  } catch (err) {
-    // Обрабатываем только реальные сетевые ошибки
-    // Даже при сетевой ошибке очищаем localStorage
-    clearUserData();
-    if (err instanceof TypeError && err.message.includes("fetch")) {
-      return {
-        success: false,
-        error: "Ошибка сети. Проверьте подключение к интернету.",
-      };
-    } else {
-      return {
-        success: false,
-        error: "Произошла неожиданная ошибка. Попробуйте позже.",
-      };
-    }
-  }
+  return result;
 }
 
 /**
@@ -471,73 +254,19 @@ export async function logoutUser(
 export async function changePassword(
   data: ChangePasswordRequest
 ): Promise<ChangePasswordResponse> {
-  try {
-    const response = await fetch(`${API_BASE_URL}/auth/change_pass`, {
+  return makeRequest<ChangePasswordResponse>(
+    `${API_BASE_URL}/auth/change_pass`,
+    {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
       body: JSON.stringify(data),
-    });
-
-    // Пытаемся прочитать ответ как JSON
-    let result: ChangePasswordResponse;
-    try {
-      result = await response.json();
-    } catch {
-      // Если не удалось распарсить JSON, обрабатываем по статусу
-      let errorMessage = "Произошла ошибка при смене пароля";
-      if (response.status === 400) {
-        errorMessage = "Неверные данные для смены пароля";
-      } else if (response.status === 401) {
-        errorMessage = "Неверный старый пароль";
-      } else if (response.status === 404) {
-        errorMessage = "Пользователь не найден";
-      } else if (response.status >= 500) {
-        errorMessage = "Ошибка сервера. Попробуйте позже";
-      }
-      return {
-        success: false,
-        error: errorMessage,
-      };
+      errorHandlers: {
+        400: "Неверные данные для смены пароля",
+        401: "Неверный старый пароль",
+        404: "Пользователь не найден",
+      },
+      defaultErrorMessage: "Произошла ошибка при смене пароля",
     }
-
-    // Проверяем статус ответа и данные
-    if (!response.ok || !result.success) {
-      // Используем сообщение об ошибке из ответа или по статусу
-      let errorMessage = result.error || "Произошла ошибка при смене пароля";
-      if (!result.error) {
-        if (response.status === 400) {
-          errorMessage = "Неверные данные для смены пароля";
-        } else if (response.status === 401) {
-          errorMessage = "Неверный старый пароль";
-        } else if (response.status === 404) {
-          errorMessage = "Пользователь не найден";
-        } else if (response.status >= 500) {
-          errorMessage = "Ошибка сервера. Попробуйте позже";
-        }
-      }
-      return {
-        success: false,
-        error: errorMessage,
-      };
-    }
-
-    return result;
-  } catch (err) {
-    // Обрабатываем только реальные сетевые ошибки
-    if (err instanceof TypeError && err.message.includes("fetch")) {
-      return {
-        success: false,
-        error: "Ошибка сети. Проверьте подключение к интернету.",
-      };
-    } else {
-      return {
-        success: false,
-        error: "Произошла неожиданная ошибка. Попробуйте позже.",
-      };
-    }
-  }
+  );
 }
 
 /**
@@ -548,77 +277,14 @@ export async function changePassword(
 export async function getUserProfile(
   userId: string
 ): Promise<UserProfileResponse> {
-  try {
-    const accessToken = localStorage.getItem("accessToken");
-
-    if (!accessToken) {
-      return {
-        success: false,
-        error: "Требуется авторизация",
-      };
-    }
-
-    const response = await fetch(`${API_BASE_URL}/users/${userId}/profile`, {
+  return makeAuthorizedRequest<UserProfileResponse>(
+    `${API_BASE_URL}/users/${userId}/profile`,
+    {
       method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${accessToken}`,
+      errorHandlers: {
+        404: "Профиль не найден",
       },
-    });
-
-    // Пытаемся прочитать ответ как JSON
-    let result: UserProfileResponse;
-    try {
-      result = await response.json();
-    } catch {
-      // Если не удалось распарсить JSON, обрабатываем по статусу
-      let errorMessage = "Произошла ошибка при получении профиля";
-      if (response.status === 401) {
-        errorMessage = "Требуется авторизация";
-      } else if (response.status === 404) {
-        errorMessage = "Профиль не найден";
-      } else if (response.status >= 500) {
-        errorMessage = "Ошибка сервера. Попробуйте позже";
-      }
-      return {
-        success: false,
-        error: errorMessage,
-      };
+      defaultErrorMessage: "Произошла ошибка при получении профиля",
     }
-
-    // Проверяем статус ответа и данные
-    if (!response.ok || !result.success) {
-      // Используем сообщение об ошибке из ответа или по статусу
-      let errorMessage =
-        result.error || "Произошла ошибка при получении профиля";
-      if (!result.error) {
-        if (response.status === 401) {
-          errorMessage = "Требуется авторизация";
-        } else if (response.status === 404) {
-          errorMessage = "Профиль не найден";
-        } else if (response.status >= 500) {
-          errorMessage = "Ошибка сервера. Попробуйте позже";
-        }
-      }
-      return {
-        success: false,
-        error: errorMessage,
-      };
-    }
-
-    return result;
-  } catch (err) {
-    // Обрабатываем только реальные сетевые ошибки
-    if (err instanceof TypeError && err.message.includes("fetch")) {
-      return {
-        success: false,
-        error: "Ошибка сети. Проверьте подключение к интернету.",
-      };
-    } else {
-      return {
-        success: false,
-        error: "Произошла неожиданная ошибка. Попробуйте позже.",
-      };
-    }
-  }
+  );
 }
