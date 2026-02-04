@@ -8,6 +8,7 @@ import {
   getAvatarUrl,
   getUserAudioFiles,
   TrackFile,
+  deleteTrack,
 } from "@/lib/media";
 import Image from "next/image";
 import TrackUpload from "@/app/components/TrackUpload";
@@ -106,6 +107,50 @@ export default function ProfilePage() {
           setProfile(result.user);
         }
       });
+    }
+  };
+
+  const handleTrackDelete = async (trackId: string) => {
+    // Подтверждение удаления
+    if (!confirm("Вы уверены, что хотите удалить этот трек?")) {
+      return;
+    }
+
+    try {
+      const result = await deleteTrack(trackId);
+      if (!result.success) {
+        alert(result.error || "Не удалось удалить трек");
+        return;
+      }
+
+      // Удаляем трек из списка
+      setTracks((prev) => prev.filter((track) => track.fileId !== trackId));
+
+      // Обновляем счетчик треков в профиле
+      if (profile) {
+        setProfile({
+          ...profile,
+          stats: {
+            tracksCount: Math.max((profile.stats?.tracksCount || 0) - 1, 0),
+            followersCount: profile.stats?.followersCount || 0,
+            followingCount: profile.stats?.followingCount || 0,
+            totalPlays: profile.stats?.totalPlays || 0,
+          },
+        });
+      }
+
+      // Перезагружаем профиль для получения актуальных данных
+      const userId = localStorage.getItem("userId");
+      if (userId) {
+        getUserProfile(userId).then((result) => {
+          if (result.success && result.user) {
+            setProfile(result.user);
+          }
+        });
+      }
+    } catch (err) {
+      console.error("Ошибка при удалении трека:", err);
+      alert("Произошла ошибка при удалении трека");
     }
   };
 
@@ -493,6 +538,8 @@ export default function ProfilePage() {
                     trackId={track.fileId}
                     trackName={track.originalName.replace(/\.[^/.]+$/, "")}
                     duration={track.metadata?.duration}
+                    onDelete={handleTrackDelete}
+                    showDeleteButton={true}
                   />
                 ))}
               </div>
