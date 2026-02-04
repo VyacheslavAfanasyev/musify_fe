@@ -3,8 +3,15 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { getUserProfile, UserProfile, logoutUser } from "@/lib/auth";
-import { uploadAvatar, getAvatarUrl } from "@/lib/media";
+import {
+  uploadAvatar,
+  getAvatarUrl,
+  getUserTracks,
+  TrackFile,
+} from "@/lib/media";
 import Image from "next/image";
+import TrackUpload from "@/app/components/TrackUpload";
+import AudioPlayer from "@/app/components/AudioPlayer";
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -15,6 +22,8 @@ export default function ProfilePage() {
   const [uploadError, setUploadError] = useState<string>("");
   const [avatarError, setAvatarError] = useState<boolean>(false);
   const [avatarVersion, setAvatarVersion] = useState<number>(0);
+  const [tracks, setTracks] = useState<TrackFile[]>([]);
+  const [isLoadingTracks, setIsLoadingTracks] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -41,6 +50,11 @@ export default function ProfilePage() {
 
         setProfile(result.user);
         setAvatarError(false);
+
+        // Загружаем треки пользователя
+        if (result.user.username) {
+          loadTracks(result.user.username);
+        }
       } catch {
         setError("Произошла неожиданная ошибка. Попробуйте позже.");
       } finally {
@@ -50,6 +64,48 @@ export default function ProfilePage() {
 
     loadProfile();
   }, [router]);
+
+  const loadTracks = async (username: string) => {
+    setIsLoadingTracks(true);
+    try {
+      const result = await getUserTracks(username);
+      if (result.success && result.data) {
+        setTracks(result.data);
+      }
+    } catch {
+      // Игнорируем ошибки загрузки треков, чтобы не блокировать страницу
+    } finally {
+      setIsLoadingTracks(false);
+    }
+  };
+
+  const handleTrackUploadSuccess = (track: TrackFile) => {
+    // Добавляем новый трек в список
+    setTracks((prev) => [track, ...prev]);
+
+    // Обновляем счетчик треков в профиле
+    if (profile) {
+      setProfile({
+        ...profile,
+        stats: {
+          tracksCount: (profile.stats?.tracksCount || 0) + 1,
+          followersCount: profile.stats?.followersCount || 0,
+          followingCount: profile.stats?.followingCount || 0,
+          totalPlays: profile.stats?.totalPlays || 0,
+        },
+      });
+    }
+
+    // Перезагружаем профиль для получения актуальных данных
+    const userId = localStorage.getItem("userId");
+    if (userId) {
+      getUserProfile(userId).then((result) => {
+        if (result.success && result.user) {
+          setProfile(result.user);
+        }
+      });
+    }
+  };
 
   const handleLogout = async () => {
     try {
@@ -389,6 +445,60 @@ export default function ProfilePage() {
               Изменить пароль
             </a>
           </div>
+        </div>
+
+        {/* Tracks Section */}
+        <div className="mt-6">
+          <div className="mb-4">
+            <h2 className="text-2xl font-bold text-black dark:text-zinc-50">
+              Мои треки
+            </h2>
+            <p className="text-zinc-600 dark:text-zinc-400 mt-1">
+              {tracks.length > 0
+                ? `${tracks.length} ${
+                    tracks.length === 1
+                      ? "трек"
+                      : tracks.length < 5
+                      ? "трека"
+                      : "треков"
+                  }`
+                : "Пока нет загруженных треков"}
+            </p>
+          </div>
+
+          {/* Track Upload */}
+          <div className="mb-6">
+            <TrackUpload
+              userId={profile.userId}
+              onUploadSuccess={handleTrackUploadSuccess}
+            />
+          </div>
+
+          {/* Tracks List */}
+          {isLoadingTracks ? (
+            <div className="bg-white dark:bg-zinc-900 rounded-xl shadow border border-zinc-200 dark:border-zinc-800 p-8 text-center">
+              <p className="text-zinc-600 dark:text-zinc-400">
+                Загрузка треков...
+              </p>
+            </div>
+          ) : tracks.length > 0 ? (
+            <div className="space-y-4">
+              {tracks.map((track) => (
+                <AudioPlayer
+                  key={track.fileId}
+                  trackId={track.fileId}
+                  trackName={track.originalName.replace(/\.[^/.]+$/, "")}
+                  duration={track.metadata?.duration}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="bg-white dark:bg-zinc-900 rounded-xl shadow border border-zinc-200 dark:border-zinc-800 p-8 text-center">
+              <p className="text-zinc-600 dark:text-zinc-400">
+                Загрузите свой первый трек, чтобы начать делиться музыкой!
+              </p>
+            </div>
+          )}
         </div>
       </div>
     </div>
