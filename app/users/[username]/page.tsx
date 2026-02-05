@@ -1,64 +1,67 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
-import { getUserProfile, UserProfile, logoutUser } from "@/lib/auth";
+import { useState, useEffect } from "react";
+import { useRouter, useParams } from "next/navigation";
 import {
-  uploadAvatar,
-  getAvatarUrl,
-  getUserAudioFiles,
-  TrackFile,
-  deleteTrack,
-} from "@/lib/media";
+  getPublicProfile,
+  PublicProfile,
+  
+} from "@/lib/auth";
+import { getAvatarUrl} from "@/lib/media";
+import { followUser, unfollowUser } from "@/lib/social";
+import { getUserAudioFiles, TrackFile } from "@/lib/media";
 import Image from "next/image";
-import TrackUpload from "@/app/components/TrackUpload";
 import AudioPlayer from "@/app/components/AudioPlayer";
 import { VolumeProvider } from "@/app/components/VolumeContext";
 import FloatingPlayer from "@/app/components/FloatingPlayer";
+import Link from "next/link";
 
-export default function ProfilePage() {
+export default function UserProfilePage() {
   const router = useRouter();
-  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const params = useParams();
+  const username = params?.username as string;
+
+  const [profile, setProfile] = useState<PublicProfile | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string>("");
-  const [isUploading, setIsUploading] = useState<boolean>(false);
-  const [uploadError, setUploadError] = useState<string>("");
   const [avatarError, setAvatarError] = useState<boolean>(false);
-  const [avatarVersion, setAvatarVersion] = useState<number>(0);
+  const [avatarVersion] = useState<number>(0);
   const [tracks, setTracks] = useState<TrackFile[]>([]);
   const [isLoadingTracks, setIsLoadingTracks] = useState<boolean>(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isFollowingUser, setIsFollowingUser] = useState<boolean>(false);
+  const [isFollowLoading, setIsFollowLoading] = useState<boolean>(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   useEffect(() => {
     const loadProfile = async () => {
-      // Проверяем наличие userId в localStorage
-      if (typeof window === "undefined") return;
+      if (typeof window === "undefined" || !username) return;
 
       const userId = localStorage.getItem("userId");
-      if (!userId) {
+      const accessToken = localStorage.getItem("accessToken");
+
+      if (!accessToken) {
         router.push("/login");
         return;
       }
 
+      setCurrentUserId(userId);
       setIsLoading(true);
       setError("");
 
       try {
-        const result = await getUserProfile(userId);
-        if (!result.success || !result.user) {
+        const result = await getPublicProfile(username, userId || undefined);
+        if (!result.success || !result.data) {
           setError(result.error || "Не удалось загрузить профиль");
           setIsLoading(false);
           return;
         }
 
-        setProfile(result.user);
+        setProfile(result.data);
+        setIsFollowingUser(result.data.isFollowing || false);
         setAvatarError(false);
 
         // Загружаем треки пользователя
-        if (result.user.username) {
-          loadTracks(result.user.username);
-        }
+        loadTracks(username);
       } catch {
         setError("Произошла неожиданная ошибка. Попробуйте позже.");
       } finally {
@@ -67,7 +70,7 @@ export default function ProfilePage() {
     };
 
     loadProfile();
-  }, [router]);
+  }, [router, username]);
 
   const loadTracks = async (username: string) => {
     setIsLoadingTracks(true);
@@ -77,149 +80,51 @@ export default function ProfilePage() {
         setTracks(result.audioFiles);
       }
     } catch {
-      // Игнорируем ошибки загрузки аудиофайлов, чтобы не блокировать страницу
+      // Игнорируем ошибки загрузки аудиофайлов
     } finally {
       setIsLoadingTracks(false);
     }
   };
 
-  const handleTrackUploadSuccess = async (track: TrackFile) => {
-    // Добавляем новый трек в список
-    setTracks((prev) => [track, ...prev]);
+  const handleFollow = async () => {
+    if (!currentUserId || !profile) return;
 
-    // Оптимистично обновляем счетчик треков в профиле
-    if (profile) {
-      setProfile({
-        ...profile,
-        stats: {
-          tracksCount: (profile.stats?.tracksCount || 0) + 1,
-          followersCount: profile.stats?.followersCount || 0,
-          followingCount: profile.stats?.followingCount || 0,
-          totalPlays: profile.stats?.totalPlays || 0,
-        },
-      });
-    }
-
-    // Перезагружаем профиль для получения актуальных данных с сервера
-    const userId = localStorage.getItem("userId");
-    if (userId) {
-      try {
-        const result = await getUserProfile(userId);
-        if (result.success && result.user) {
-          setProfile(result.user);
-        }
-      } catch (err) {
-        console.error("Ошибка при обновлении профиля:", err);
-        // В случае ошибки оставляем оптимистичное обновление
-      }
-    }
-  };
-
-  const handleTrackDelete = async (trackId: string) => {
-    // Подтверждение удаления
-    if (!confirm("Вы уверены, что хотите удалить этот трек?")) {
-      return;
-    }
-
+    setIsFollowLoading(true);
     try {
-      const result = await deleteTrack(trackId);
-      if (!result.success) {
-        alert(result.error || "Не удалось удалить трек");
-        return;
-      }
-
-      // Удаляем трек из списка
-      setTracks((prev) => prev.filter((track) => track.fileId !== trackId));
-
-      // Оптимистично обновляем счетчик треков в профиле
-      if (profile) {
-        setProfile({
-          ...profile,
-          stats: {
-            tracksCount: Math.max((profile.stats?.tracksCount || 0) - 1, 0),
-            followersCount: profile.stats?.followersCount || 0,
-            followingCount: profile.stats?.followingCount || 0,
-            totalPlays: profile.stats?.totalPlays || 0,
-          },
-        });
-      }
-
-      // Перезагружаем профиль для получения актуальных данных с сервера
-      const userId = localStorage.getItem("userId");
-      if (userId) {
-        try {
-          const result = await getUserProfile(userId);
-          if (result.success && result.user) {
-            setProfile(result.user);
-          }
-        } catch (err) {
-          console.error("Ошибка при обновлении профиля:", err);
-          // В случае ошибки оставляем оптимистичное обновление
+      if (isFollowingUser) {
+        // Отписка
+        const result = await unfollowUser(profile.profile.userId, currentUserId);
+        if (result.success) {
+          setIsFollowingUser(false);
+          // Обновляем счетчик подписчиков
+          setProfile({
+            ...profile,
+            followersCount: Math.max(profile.followersCount - 1, 0),
+            isFollowing: false,
+          });
+        } else {
+          alert(result.error || "Не удалось отписаться");
+        }
+      } else {
+        // Подписка
+        const result = await followUser(profile.profile.userId, currentUserId);
+        if (result.success) {
+          setIsFollowingUser(true);
+          // Обновляем счетчик подписчиков
+          setProfile({
+            ...profile,
+            followersCount: profile.followersCount + 1,
+            isFollowing: true,
+          });
+        } else {
+          alert(result.error || "Не удалось подписаться");
         }
       }
     } catch (err) {
-      console.error("Ошибка при удалении трека:", err);
-      alert("Произошла ошибка при удалении трека");
-    }
-  };
-
-  const handleLogout = async () => {
-    try {
-      await logoutUser();
-      router.push("/login");
-    } catch (err) {
-      console.error("Ошибка при выходе:", err);
-    }
-  };
-
-  const handleAvatarClick = () => {
-    fileInputRef.current?.click();
-  };
-
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const userId = localStorage.getItem("userId");
-    if (!userId) {
-      setUploadError("Пользователь не найден");
-      return;
-    }
-
-    setIsUploading(true);
-    setUploadError("");
-
-    try {
-      const result = await uploadAvatar(file, userId);
-      if (!result.success || !result.file) {
-        setUploadError(result.error || "Не удалось загрузить аватар");
-        setIsUploading(false);
-        return;
-      }
-
-      // Обновляем профиль с новым URL аватара
-      if (profile) {
-        setProfile({
-          ...profile,
-          avatarUrl: result.file.url,
-        });
-      }
-
-      // Перезагружаем профиль для получения актуальных данных
-      const profileResult = await getUserProfile(userId);
-      if (profileResult.success && profileResult.user) {
-        setProfile(profileResult.user);
-        setAvatarError(false);
-        setAvatarVersion((prev) => prev + 1);
-      }
-    } catch {
-      setUploadError("Произошла неожиданная ошибка. Попробуйте позже.");
+      console.error("Ошибка при подписке/отписке:", err);
+      alert("Произошла ошибка. Попробуйте позже.");
     } finally {
-      setIsUploading(false);
-      // Очищаем input для возможности повторной загрузки того же файла
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
+      setIsFollowLoading(false);
     }
   };
 
@@ -243,12 +148,20 @@ export default function ProfilePage() {
             <div className="p-4 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 mb-4">
               <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
             </div>
-            <button
-              onClick={() => router.push("/login")}
-              className="w-full py-3 px-4 rounded-lg bg-foreground text-background font-medium hover:bg-[#383838] dark:hover:bg-[#ccc] transition-colors"
-            >
-              Вернуться к входу
-            </button>
+            <div className="flex gap-4">
+              <button
+                onClick={() => router.push("/users")}
+                className="flex-1 py-3 px-4 rounded-lg bg-foreground text-background font-medium hover:bg-[#383838] dark:hover:bg-[#ccc] transition-colors"
+              >
+                К списку пользователей
+              </button>
+              <button
+                onClick={() => router.push("/profile")}
+                className="flex-1 py-3 px-4 rounded-lg border border-zinc-300 dark:border-zinc-700 text-black dark:text-zinc-50 font-medium hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+              >
+                Мой профиль
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -259,14 +172,17 @@ export default function ProfilePage() {
     return null;
   }
 
+  const userProfile = profile.profile;
+  const isOwnProfile = profile.isOwnProfile || false;
+
   return (
     <VolumeProvider>
       <div className="min-h-screen bg-zinc-50 font-sans dark:bg-black pb-20">
         {/* Cover Image */}
         <div className="relative h-64 w-full bg-gradient-to-r from-zinc-800 to-zinc-900 dark:from-zinc-900 dark:to-black">
-          {profile.coverImageUrl ? (
+          {userProfile.coverImageUrl ? (
             <Image
-              src={profile.coverImageUrl}
+              src={userProfile.coverImageUrl}
               alt="Cover"
               fill
               className="object-cover"
@@ -280,87 +196,72 @@ export default function ProfilePage() {
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
               {/* Avatar */}
               <div className="relative flex-shrink-0">
-                <div
-                  className="relative w-32 h-32 rounded-full border-4 border-white dark:border-zinc-900 bg-zinc-200 dark:bg-zinc-800 overflow-hidden cursor-pointer hover:opacity-80 transition-opacity group"
-                  onClick={handleAvatarClick}
-                >
+                <div className="relative w-32 h-32 rounded-full border-4 border-white dark:border-zinc-900 bg-zinc-200 dark:bg-zinc-800 overflow-hidden">
                   {!avatarError ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
-                      key={`avatar-${profile.userId}-${avatarVersion}`}
-                      src={`${getAvatarUrl(profile.userId)}?v=${avatarVersion}`}
-                      alt={profile.displayName || profile.username}
+                      key={`avatar-${userProfile.userId}-${avatarVersion}`}
+                      src={`${getAvatarUrl(userProfile.userId)}?v=${avatarVersion}`}
+                      alt={userProfile.displayName || userProfile.username}
                       className="w-full h-full object-cover"
                       onError={() => {
-                        // Если аватар не найден, показываем инициал
                         setAvatarError(true);
                       }}
                     />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-4xl font-semibold text-zinc-500 dark:text-zinc-400">
-                      {(profile.displayName ||
-                        profile.username)[0].toUpperCase()}
+                      {(userProfile.displayName ||
+                        userProfile.username)[0].toUpperCase()}
                     </div>
                   )}
-                  {isUploading && (
-                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                      <div className="text-white text-sm">Загрузка...</div>
-                    </div>
-                  )}
-                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
-                    <span className="text-white text-xs opacity-0 group-hover:opacity-100 transition-opacity font-medium">
-                      Изменить
-                    </span>
-                  </div>
                 </div>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/jpeg,image/jpg,image/png,image/webp"
-                  onChange={handleFileChange}
-                  className="hidden"
-                />
-                {uploadError && (
-                  <p className="mt-2 text-sm text-red-600 dark:text-red-400 text-center max-w-32">
-                    {uploadError}
-                  </p>
-                )}
               </div>
 
               {/* Profile Info */}
               <div className="flex-1 min-w-0">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 relative z-10">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                   <div>
                     <h1 className="text-3xl font-bold text-black dark:text-zinc-50 mb-1">
-                      {profile.displayName || profile.username}
+                      {userProfile.displayName || userProfile.username}
                     </h1>
                     <p className="text-zinc-600 dark:text-zinc-400 mb-2">
-                      @{profile.username}
+                      @{userProfile.username}
                     </p>
-                    {profile.bio && (
+                    {userProfile.bio && (
                       <p className="text-zinc-700 dark:text-zinc-300 mb-2">
-                        {profile.bio}
+                        {userProfile.bio}
                       </p>
                     )}
-                    {profile.location && (
+                    {userProfile.location && (
                       <p className="text-sm text-zinc-500 dark:text-zinc-500">
-                        📍 {profile.location}
+                        📍 {userProfile.location}
                       </p>
                     )}
                   </div>
                   <div className="flex gap-3">
+                    {!isOwnProfile && (
+                      <button
+                        onClick={handleFollow}
+                        disabled={isFollowLoading}
+                        className={`px-6 py-2 rounded-lg font-medium transition-colors whitespace-nowrap ${
+                          isFollowingUser
+                            ? "bg-zinc-200 dark:bg-zinc-800 text-black dark:text-zinc-50 hover:bg-zinc-300 dark:hover:bg-zinc-700"
+                            : "bg-foreground text-background hover:bg-[#383838] dark:hover:bg-[#ccc]"
+                        } ${isFollowLoading ? "opacity-50 cursor-not-allowed" : ""}`}
+                      >
+                        {isFollowLoading
+                          ? "Загрузка..."
+                          : isFollowingUser
+                          ? "Отписаться"
+                          : "Подписаться"}
+                      </button>
+                    )}
                     <Link
                       href="/users"
                       className="px-4 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 text-black dark:text-zinc-50 font-medium hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors whitespace-nowrap"
                     >
-                      Пользователи
+                      Назад
                     </Link>
-                    <button
-                      onClick={handleLogout}
-                      className="px-4 py-2 rounded-lg bg-red-600 text-white font-medium hover:bg-red-700 transition-colors whitespace-nowrap"
-                    >
-                      Выйти
-                    </button>
                   </div>
                 </div>
               </div>
@@ -368,11 +269,11 @@ export default function ProfilePage() {
           </div>
 
           {/* Stats */}
-          {profile.stats && (
+          {userProfile.stats && (
             <div className="mt-6 grid grid-cols-2 sm:grid-cols-4 gap-4">
               <div className="bg-white dark:bg-zinc-900 rounded-xl shadow border border-zinc-200 dark:border-zinc-800 p-4 text-center">
                 <div className="text-2xl font-bold text-black dark:text-zinc-50">
-                  {profile.stats.tracksCount || 0}
+                  {userProfile.stats.tracksCount || 0}
                 </div>
                 <div className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">
                   Треков
@@ -380,7 +281,7 @@ export default function ProfilePage() {
               </div>
               <div className="bg-white dark:bg-zinc-900 rounded-xl shadow border border-zinc-200 dark:border-zinc-800 p-4 text-center">
                 <div className="text-2xl font-bold text-black dark:text-zinc-50">
-                  {profile.stats.followersCount || 0}
+                  {profile.followersCount}
                 </div>
                 <div className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">
                   Подписчиков
@@ -388,7 +289,7 @@ export default function ProfilePage() {
               </div>
               <div className="bg-white dark:bg-zinc-900 rounded-xl shadow border border-zinc-200 dark:border-zinc-800 p-4 text-center">
                 <div className="text-2xl font-bold text-black dark:text-zinc-50">
-                  {profile.stats.followingCount || 0}
+                  {profile.followingCount}
                 </div>
                 <div className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">
                   Подписок
@@ -396,7 +297,7 @@ export default function ProfilePage() {
               </div>
               <div className="bg-white dark:bg-zinc-900 rounded-xl shadow border border-zinc-200 dark:border-zinc-800 p-4 text-center">
                 <div className="text-2xl font-bold text-black dark:text-zinc-50">
-                  {profile.stats.totalPlays || 0}
+                  {userProfile.stats.totalPlays || 0}
                 </div>
                 <div className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">
                   Прослушиваний
@@ -406,16 +307,16 @@ export default function ProfilePage() {
           )}
 
           {/* Genres and Instruments */}
-          {(profile.genres && profile.genres.length > 0) ||
-          (profile.instruments && profile.instruments.length > 0) ? (
+          {(userProfile.genres && userProfile.genres.length > 0) ||
+          (userProfile.instruments && userProfile.instruments.length > 0) ? (
             <div className="mt-6 bg-white dark:bg-zinc-900 rounded-xl shadow border border-zinc-200 dark:border-zinc-800 p-6">
-              {profile.genres && profile.genres.length > 0 && (
+              {userProfile.genres && userProfile.genres.length > 0 && (
                 <div className="mb-4">
                   <h2 className="text-lg font-semibold text-black dark:text-zinc-50 mb-2">
                     Жанры
                   </h2>
                   <div className="flex flex-wrap gap-2">
-                    {profile.genres.map((genre, index) => (
+                    {userProfile.genres.map((genre, index) => (
                       <span
                         key={index}
                         className="px-3 py-1 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 text-sm"
@@ -426,13 +327,13 @@ export default function ProfilePage() {
                   </div>
                 </div>
               )}
-              {profile.instruments && profile.instruments.length > 0 && (
+              {userProfile.instruments && userProfile.instruments.length > 0 && (
                 <div>
                   <h2 className="text-lg font-semibold text-black dark:text-zinc-50 mb-2">
                     Инструменты
                   </h2>
                   <div className="flex flex-wrap gap-2">
-                    {profile.instruments.map((instrument, index) => (
+                    {userProfile.instruments.map((instrument, index) => (
                       <span
                         key={index}
                         className="px-3 py-1 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 text-sm"
@@ -447,18 +348,18 @@ export default function ProfilePage() {
           ) : null}
 
           {/* Social Links */}
-          {profile.socialLinks &&
-            (profile.socialLinks.youtube ||
-              profile.socialLinks.vk ||
-              profile.socialLinks.telegram) && (
+          {userProfile.socialLinks &&
+            (userProfile.socialLinks.youtube ||
+              userProfile.socialLinks.vk ||
+              userProfile.socialLinks.telegram) && (
               <div className="mt-6 bg-white dark:bg-zinc-900 rounded-xl shadow border border-zinc-200 dark:border-zinc-800 p-6">
                 <h2 className="text-lg font-semibold text-black dark:text-zinc-50 mb-4">
                   Социальные сети
                 </h2>
                 <div className="flex flex-wrap gap-4">
-                  {profile.socialLinks.youtube && (
+                  {userProfile.socialLinks.youtube && (
                     <a
-                      href={profile.socialLinks.youtube}
+                      href={userProfile.socialLinks.youtube}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-red-600 dark:text-red-400 hover:underline"
@@ -466,9 +367,9 @@ export default function ProfilePage() {
                       YouTube
                     </a>
                   )}
-                  {profile.socialLinks.vk && (
+                  {userProfile.socialLinks.vk && (
                     <a
-                      href={profile.socialLinks.vk}
+                      href={userProfile.socialLinks.vk}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-blue-600 dark:text-blue-400 hover:underline"
@@ -476,9 +377,9 @@ export default function ProfilePage() {
                       VK
                     </a>
                   )}
-                  {profile.socialLinks.telegram && (
+                  {userProfile.socialLinks.telegram && (
                     <a
-                      href={`https://t.me/${profile.socialLinks.telegram.replace(
+                      href={`https://t.me/${userProfile.socialLinks.telegram.replace(
                         "@",
                         ""
                       )}`}
@@ -495,21 +396,13 @@ export default function ProfilePage() {
 
           {/* Role */}
           <div className="mt-6 bg-white dark:bg-zinc-900 rounded-xl shadow border border-zinc-200 dark:border-zinc-800 p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-lg font-semibold text-black dark:text-zinc-50 mb-1">
-                  Роль
-                </h2>
-                <p className="text-zinc-600 dark:text-zinc-400 capitalize">
-                  {profile.role === "musician" ? "Музыкант" : "Слушатель"}
-                </p>
-              </div>
-              <a
-                href="/change-password"
-                className="px-4 py-2 rounded-lg bg-foreground text-background font-medium hover:bg-[#383838] dark:hover:bg-[#ccc] transition-colors"
-              >
-                Изменить пароль
-              </a>
+            <div>
+              <h2 className="text-lg font-semibold text-black dark:text-zinc-50 mb-1">
+                Роль
+              </h2>
+              <p className="text-zinc-600 dark:text-zinc-400 capitalize">
+                {userProfile.role === "musician" ? "Музыкант" : "Слушатель"}
+              </p>
             </div>
           </div>
 
@@ -517,7 +410,7 @@ export default function ProfilePage() {
           <div className="mt-6">
             <div className="mb-4">
               <h2 className="text-2xl font-bold text-black dark:text-zinc-50">
-                Мои треки
+                Треки
               </h2>
               <p className="text-zinc-600 dark:text-zinc-400 mt-1">
                 {tracks.length > 0
@@ -530,14 +423,6 @@ export default function ProfilePage() {
                     }`
                   : "Пока нет загруженных треков"}
               </p>
-            </div>
-
-            {/* Track Upload */}
-            <div className="mb-6">
-              <TrackUpload
-                userId={profile.userId}
-                onUploadSuccess={handleTrackUploadSuccess}
-              />
             </div>
 
             {/* Tracks List */}
@@ -555,15 +440,14 @@ export default function ProfilePage() {
                     trackId={track.fileId}
                     trackName={track.originalName.replace(/\.[^/.]+$/, "")}
                     duration={track.metadata?.duration}
-                    onDelete={handleTrackDelete}
-                    showDeleteButton={true}
+                    showDeleteButton={false}
                   />
                 ))}
               </div>
             ) : (
               <div className="bg-white dark:bg-zinc-900 rounded-xl shadow border border-zinc-200 dark:border-zinc-800 p-8 text-center">
                 <p className="text-zinc-600 dark:text-zinc-400">
-                  Загрузите свой первый трек, чтобы начать делиться музыкой!
+                  У этого пользователя пока нет загруженных треков
                 </p>
               </div>
             )}
@@ -574,3 +458,4 @@ export default function ProfilePage() {
     </VolumeProvider>
   );
 }
+

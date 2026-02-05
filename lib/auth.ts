@@ -288,3 +288,99 @@ export async function getUserProfile(
     }
   );
 }
+
+/**
+ * Получает профиль пользователя по username
+ * @param username - Username пользователя
+ * @returns Promise с данными профиля
+ */
+export async function getUserProfileByUsername(
+  username: string
+): Promise<UserProfileResponse> {
+  return makeAuthorizedRequest<UserProfileResponse>(
+    `${API_BASE_URL}/users/username/${username}`,
+    {
+      method: "GET",
+      errorHandlers: {
+        404: "Профиль не найден",
+      },
+      defaultErrorMessage: "Произошла ошибка при получении профиля",
+    }
+  );
+}
+
+/**
+ * Получает список всех пользователей
+ * @param excludeUserId - ID пользователя, которого нужно исключить из списка (опционально)
+ * @returns Promise со списком профилей пользователей
+ */
+export interface GetAllUsersResponse extends ApiResponse {
+  profiles?: UserProfile[];
+}
+
+export async function getAllUsers(
+  excludeUserId?: string
+): Promise<GetAllUsersResponse> {
+  const url = excludeUserId
+    ? `${API_BASE_URL}/users?excludeUserId=${excludeUserId}`
+    : `${API_BASE_URL}/users`;
+
+  return makeAuthorizedRequest<GetAllUsersResponse>(url, {
+    method: "GET",
+    errorHandlers: {
+      500: "Сервис пользователей временно недоступен. Попробуйте позже.",
+    },
+    defaultErrorMessage: "Произошла ошибка при получении списка пользователей",
+  });
+}
+
+/**
+ * Получает публичный профиль пользователя
+ * @param username - Username пользователя
+ * @param viewerId - ID пользователя, который просматривает профиль (опционально)
+ * @returns Promise с публичным профилем
+ */
+export interface PublicProfile {
+  profile: UserProfile;
+  tracks: Array<{
+    fileId: string;
+    userId: string;
+    type: string;
+    originalName: string;
+    fileName: string;
+    mimeType: string;
+    size: number;
+    url: string;
+    metadata?: {
+      duration?: number;
+      bitrate?: number;
+      format?: string;
+    };
+    createdAt: string;
+  }>;
+  followersCount: number;
+  followingCount: number;
+  isFollowing?: boolean;
+  isOwnProfile?: boolean;
+}
+
+export interface PublicProfileResponse extends ApiResponse {
+  data?: PublicProfile;
+}
+
+export async function getPublicProfile(
+  username: string,
+  viewerId?: string
+): Promise<PublicProfileResponse> {
+  const url = viewerId
+    ? `${API_BASE_URL}/users/${username}/public?viewerId=${viewerId}`
+    : `${API_BASE_URL}/users/${username}/public`;
+
+  return makeAuthorizedRequest<PublicProfileResponse>(url, {
+    method: "GET",
+    errorHandlers: {
+      404: "Профиль не найден",
+    },
+    defaultErrorMessage: "Произошла ошибка при получении профиля",
+  });
+}

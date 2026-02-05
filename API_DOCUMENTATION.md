@@ -1,7 +1,6 @@
 # API Документация - PET Backend
 
 ## Базовый URL
-
 ```
 http://localhost:3000
 ```
@@ -15,7 +14,6 @@ Backend использует микросервисную архитектуру
 Все ответы API возвращаются в следующем формате:
 
 **Успешный ответ:**
-
 ```json
 {
   "success": true,
@@ -24,7 +22,6 @@ Backend использует микросервисную архитектуру
 ```
 
 **Ошибка:**
-
 ```json
 {
   "success": false,
@@ -49,7 +46,6 @@ Backend использует микросервисную архитектуру
 **Rate Limit:** 5 запросов в минуту
 
 **Request Body:**
-
 ```json
 {
   "email": "user@example.com",
@@ -60,7 +56,6 @@ Backend использует микросервисную архитектуру
 ```
 
 **Response (200 OK):**
-
 ```json
 {
   "success": true,
@@ -74,7 +69,6 @@ Backend использует микросервисную архитектуру
 ```
 
 **Response (400/409):**
-
 ```json
 {
   "success": false,
@@ -93,7 +87,6 @@ Backend использует микросервисную архитектуру
 **Rate Limit:** 5 запросов в минуту
 
 **Request Body:**
-
 ```json
 {
   "email": "user@example.com",
@@ -102,7 +95,6 @@ Backend использует микросервисную архитектуру
 ```
 
 **Response (200 OK):**
-
 ```json
 {
   "success": true,
@@ -118,7 +110,6 @@ Backend использует микросервисную архитектуру
 ```
 
 **Response (401):**
-
 ```json
 {
   "success": false,
@@ -135,7 +126,6 @@ Backend использует микросервисную архитектуру
 Обновляет пару access/refresh токенов.
 
 **Request Body:**
-
 ```json
 {
   "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
@@ -143,7 +133,6 @@ Backend использует микросервисную архитектуру
 ```
 
 **Response (200 OK):**
-
 ```json
 {
   "success": true,
@@ -162,7 +151,6 @@ Backend использует микросервисную архитектуру
 Инвалидирует refresh токен.
 
 **Request Body:**
-
 ```json
 {
   "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
@@ -170,7 +158,6 @@ Backend использует микросервисную архитектуру
 ```
 
 **Response (200 OK):**
-
 ```json
 {
   "success": true
@@ -186,7 +173,6 @@ Backend использует микросервисную архитектуру
 Изменяет пароль пользователя.
 
 **Request Body:**
-
 ```json
 {
   "userId": "uuid",
@@ -196,7 +182,6 @@ Backend использует микросервисную архитектуру
 ```
 
 **Response (200 OK):**
-
 ```json
 {
   "success": true
@@ -214,11 +199,9 @@ Backend использует микросервисную архитектуру
 Получает профиль пользователя по его ID.
 
 **Path Parameters:**
-
 - `id` (string, required) - UUID пользователя
 
 **Response (200 OK):**
-
 ```json
 {
   "success": true,
@@ -266,29 +249,97 @@ Backend использует микросервисную архитектуру
 Получает профиль пользователя по его username.
 
 **Path Parameters:**
-
 - `username` (string, required) - Username пользователя
 
 **Response:** Аналогично `/users/:id/profile`
 
 ---
 
-### 2.3 Получить публичный профиль
+### 2.3 Получить список всех пользователей
+
+**GET** `/users?excludeUserId=uuid`
+
+Получает список всех пользователей в системе.
+
+**Query Parameters:**
+- `excludeUserId` (string, optional) - ID пользователя, которого нужно исключить из списка (обычно ID текущего пользователя)
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "profiles": [
+    {
+      "_id": "mongodb_id",
+      "userId": "uuid",
+      "username": "johndoe",
+      "displayName": "John Doe",
+      "bio": "Musician from Moscow",
+      "avatarUrl": "http://localhost:3000/media/avatar/userId",
+      "coverImageUrl": "http://localhost:3000/media/file/fileId",
+      "location": "Moscow, Russia",
+      "genres": ["rock", "jazz"],
+      "instruments": ["guitar", "piano"],
+      "socialLinks": {
+        "youtube": "https://youtube.com/@johndoe",
+        "vk": "https://vk.com/johndoe",
+        "telegram": "@johndoe"
+      },
+      "stats": {
+        "tracksCount": 15,
+        "followersCount": 120,
+        "followingCount": 45,
+        "totalPlays": 1250
+      },
+      "preferences": {
+        "emailNotifications": true,
+        "showOnlineStatus": true,
+        "privateProfile": false
+      },
+      "role": "musician",
+      "following": ["uuid1", "uuid2"],
+      "createdAt": "2024-01-01T00:00:00.000Z",
+      "updatedAt": "2024-01-15T00:00:00.000Z"
+    },
+    {
+      "_id": "mongodb_id_2",
+      "userId": "uuid_2",
+      "username": "janedoe",
+      "displayName": "Jane Doe",
+      ...
+    }
+  ]
+}
+```
+
+**Response (500):**
+```json
+{
+  "success": false,
+  "error": "User Service is temporarily unavailable. Please try again later."
+}
+```
+
+**Примечание:** 
+- Если указан параметр `excludeUserId`, пользователь с этим ID будет исключен из списка результатов.
+- Рекомендуется использовать для отображения списка пользователей, поиска и навигации по профилям.
+- Обычно используется с параметром `excludeUserId`, чтобы исключить текущего пользователя из списка других пользователей.
+
+---
+
+### 2.4 Получить публичный профиль
 
 **GET** `/users/:username/public?viewerId=uuid`
 
 Получает публичный профиль пользователя с дополнительной информацией для просматривающего пользователя.
 
 **Path Parameters:**
-
 - `username` (string, required) - Username пользователя
 
 **Query Parameters:**
-
 - `viewerId` (string, optional) - ID пользователя, который просматривает профиль
 
 **Response (200 OK):**
-
 ```json
 {
   "success": true,
@@ -305,18 +356,16 @@ Backend использует микросервисную архитектуру
 
 ---
 
-### 2.4 Получить треки пользователя
+### 2.5 Получить треки пользователя
 
 **GET** `/users/:username/tracks`
 
 Получает список всех треков пользователя.
 
 **Path Parameters:**
-
 - `username` (string, required) - Username пользователя
 
 **Response (200 OK):**
-
 ```json
 {
   "success": true,
@@ -343,18 +392,16 @@ Backend использует микросервисную архитектуру
 
 ---
 
-### 2.5 Получить все аудиофайлы пользователя
+### 2.6 Получить все аудиофайлы пользователя
 
 **GET** `/users/:username/audio-files`
 
 Получает список всех загруженных аудиофайлов пользователя (включая треки и другие аудиофайлы с mimeType, начинающимся с "audio/").
 
 **Path Parameters:**
-
 - `username` (string, required) - Username пользователя
 
 **Response (200 OK):**
-
 ```json
 {
   "success": true,
@@ -401,18 +448,16 @@ Backend использует микросервисную архитектуру
 
 ---
 
-### 2.6 Обновить профиль
+### 2.7 Обновить профиль
 
 **PUT** `/users/:id/profile`
 
 Обновляет данные профиля пользователя.
 
 **Path Parameters:**
-
 - `id` (string, required) - UUID пользователя
 
 **Request Body:**
-
 ```json
 {
   "displayName": "John Doe Updated",
@@ -435,7 +480,6 @@ Backend использует микросервисную архитектуру
 **Все поля опциональны.** Можно обновлять только нужные поля.
 
 **Response (200 OK):**
-
 ```json
 {
   "success": true,
@@ -458,13 +502,11 @@ Backend использует микросервисную архитектуру
 **Content-Type:** `multipart/form-data`
 
 **Request Body (Form Data):**
-
 - `file` (File, required) - Изображение (JPG, PNG, WebP)
 - `userId` (string, required) - UUID пользователя
 - `type` (string, optional) - Тип файла
 
 **Response (200 OK):**
-
 ```json
 {
   "success": true,
@@ -488,7 +530,6 @@ Backend использует микросервисную архитектуру
 ```
 
 **Response (400):**
-
 ```json
 {
   "success": false,
@@ -509,13 +550,11 @@ Backend использует микросервисную архитектуру
 **Content-Type:** `multipart/form-data`
 
 **Request Body (Form Data):**
-
 - `file` (File, required) - Аудио файл (MP3, WAV, OGG, M4A)
 - `userId` (string, required) - UUID пользователя
 - `type` (string, optional) - Тип файла
 
 **Response (200 OK):**
-
 ```json
 {
   "success": true,
@@ -551,7 +590,6 @@ Backend использует микросервисную архитектуру
 **Content-Type:** `multipart/form-data`
 
 **Request Body (Form Data):**
-
 - `file` (File, required) - Изображение (JPG, PNG, WebP)
 - `userId` (string, required) - UUID пользователя
 - `type` (string, optional) - Тип файла
@@ -567,16 +605,13 @@ Backend использует микросервисную архитектуру
 Получает аватар пользователя как бинарный файл.
 
 **Path Parameters:**
-
 - `userId` (string, required) - UUID пользователя
 
 **Response (200 OK):**
-
 - Content-Type: `image/jpeg` (или другой тип изображения)
 - Binary data (изображение)
 
 **Response (404):**
-
 ```json
 {
   "success": false,
@@ -593,27 +628,22 @@ Backend использует микросервисную архитектуру
 Получает аудио трек с поддержкой стриминга (Range requests).
 
 **Path Parameters:**
-
 - `trackId` (string, required) - ID трека
 
 **Headers (опционально):**
-
 - `Range: bytes=0-1048575` - Для частичного получения файла (1MB chunks)
 
 **Response (200 OK или 206 Partial Content):**
-
 - Content-Type: `audio/mpeg` (или другой тип аудио)
 - Accept-Ranges: `bytes`
 - Content-Length: размер файла или части
 - Binary data (аудио файл)
 
 **Response (206 Partial Content) при Range запросе:**
-
 - Content-Range: `bytes 0-1048575/5242880`
 - Частичный контент
 
 **Response (404):**
-
 ```json
 {
   "success": false,
@@ -630,7 +660,6 @@ Backend использует микросервисную архитектуру
 Получает обложку трека как бинарный файл.
 
 **Path Parameters:**
-
 - `trackId` (string, required) - ID трека
 
 **Response:** Аналогично `/media/avatar/:userId`
@@ -644,7 +673,6 @@ Backend использует микросервисную архитектуру
 Получает любой медиа файл по его ID.
 
 **Path Parameters:**
-
 - `fileId` (string, required) - ID файла
 
 **Response:** Бинарный файл с соответствующим Content-Type
@@ -658,11 +686,9 @@ Backend использует микросервисную архитектуру
 Удаляет любой медиа файл (изображения, аудио, видео и т.д.).
 
 **Path Parameters:**
-
 - `fileId` (string, required) - ID файла
 
 **Response (200 OK):**
-
 ```json
 {
   "success": true
@@ -670,7 +696,6 @@ Backend использует микросервисную архитектуру
 ```
 
 **Response (404):**
-
 ```json
 {
   "success": false,
@@ -689,11 +714,9 @@ Backend использует микросервисную архитектуру
 Удаляет аудио трек. Является удобным алиасом для `/media/file/:fileId`, специально предназначенным для удаления треков.
 
 **Path Parameters:**
-
 - `trackId` (string, required) - ID трека (fileId)
 
 **Response (200 OK):**
-
 ```json
 {
   "success": true
@@ -701,7 +724,6 @@ Backend использует микросервисную архитектуру
 ```
 
 **Response (404):**
-
 ```json
 {
   "success": false,
@@ -709,8 +731,7 @@ Backend использует микросервисную архитектуру
 }
 ```
 
-**Примечание:**
-
+**Примечание:** 
 - При удалении трека автоматически отправляется событие `media.track.deleted`, которое обновляет счетчик треков пользователя (`tracksCount`) в профиле.
 - Удаляется как файл с диска, так и запись из базы данных.
 - Инвалидируется кэш, связанный с этим треком.
@@ -726,11 +747,9 @@ Backend использует микросервисную архитектуру
 Подписывается на пользователя.
 
 **Path Parameters:**
-
 - `userId` (string, required) - ID пользователя, на которого подписываются
 
 **Request Body:**
-
 ```json
 {
   "followerId": "uuid" // ID пользователя, который подписывается
@@ -738,7 +757,6 @@ Backend использует микросервисную архитектуру
 ```
 
 **Response (200 OK):**
-
 ```json
 {
   "success": true,
@@ -761,11 +779,9 @@ Backend использует микросервисную архитектуру
 Отписывается от пользователя. Оба метода работают одинаково.
 
 **Path Parameters:**
-
 - `userId` (string, required) - ID пользователя, от которого отписываются
 
 **Request Body:**
-
 ```json
 {
   "followerId": "uuid" // ID пользователя, который отписывается
@@ -773,7 +789,6 @@ Backend использует микросервисную архитектуру
 ```
 
 **Response (200 OK):**
-
 ```json
 {
   "success": true
@@ -789,11 +804,9 @@ Backend использует микросервисную архитектуру
 Получает список подписчиков пользователя.
 
 **Path Parameters:**
-
 - `userId` (string, required) - ID пользователя
 
 **Response (200 OK):**
-
 ```json
 {
   "success": true,
@@ -817,7 +830,6 @@ Backend использует микросервисную архитектуру
 Получает список пользователей, на которых подписан данный пользователь.
 
 **Path Parameters:**
-
 - `userId` (string, required) - ID пользователя
 
 **Response:** Аналогично `/social/followers/:userId`
@@ -831,12 +843,10 @@ Backend использует микросервисную архитектуру
 Проверяет, подписан ли один пользователь на другого.
 
 **Path Parameters:**
-
 - `followerId` (string, required) - ID пользователя, который может быть подписан
 - `followingId` (string, required) - ID пользователя, на которого может быть подписка
 
 **Response (200 OK):**
-
 ```json
 {
   "success": true,
@@ -855,11 +865,9 @@ Backend использует микросервисную архитектуру
 Получает публичный профиль пользователя с социальной информацией.
 
 **Path Parameters:**
-
 - `username` (string, required) - Username пользователя
 
 **Query Parameters:**
-
 - `viewerId` (string, optional) - ID пользователя, который просматривает профиль
 
 **Response:** Аналогично `/users/:username/public`
@@ -873,11 +881,9 @@ Backend использует микросервисную архитектуру
 Получает ленту активности пользователей, на которых подписан текущий пользователь.
 
 **Query Parameters:**
-
 - `userId` (string, required) - ID пользователя, для которого получается лента
 
 **Response (200 OK):**
-
 ```json
 {
   "success": true,
@@ -907,7 +913,6 @@ Backend использует микросервисную архитектуру
 ## 5. Типы данных
 
 ### IUserProfile
-
 ```typescript
 {
   _id?: string;
@@ -944,7 +949,6 @@ Backend использует микросервисную архитектуру
 ```
 
 ### IMediaFileResponse
-
 ```typescript
 {
   fileId: string;
@@ -968,7 +972,6 @@ Backend использует микросервисную архитектуру
 ```
 
 ### IPublicProfile
-
 ```typescript
 {
   profile: IUserProfile;
@@ -1000,33 +1003,30 @@ Backend использует микросервисную архитектуру
 
 ```javascript
 // 1. Регистрация
-const registerResponse = await fetch("http://localhost:3000/auth/register", {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
+const registerResponse = await fetch('http://localhost:3000/auth/register', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({
-    email: "user@example.com",
-    username: "johndoe",
-    password: "password123",
-    role: "musician",
-  }),
+    email: 'user@example.com',
+    username: 'johndoe',
+    password: 'password123',
+    role: 'musician'
+  })
 });
 
 const { user, accessToken, refreshToken } = await registerResponse.json();
 
 // 2. Сохранение токенов
-localStorage.setItem("accessToken", accessToken);
-localStorage.setItem("refreshToken", refreshToken);
-localStorage.setItem("userId", user.id);
+localStorage.setItem('accessToken', accessToken);
+localStorage.setItem('refreshToken', refreshToken);
+localStorage.setItem('userId', user.id);
 
 // 3. Получение профиля
-const profileResponse = await fetch(
-  `http://localhost:3000/users/${user.id}/profile`,
-  {
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-    },
+const profileResponse = await fetch(`http://localhost:3000/users/${user.id}/profile`, {
+  headers: {
+    'Authorization': `Bearer ${accessToken}`
   }
-);
+});
 
 const profile = await profileResponse.json();
 ```
@@ -1035,17 +1035,17 @@ const profile = await profileResponse.json();
 
 ```javascript
 const formData = new FormData();
-formData.append("file", avatarFile); // File объект
-formData.append("userId", userId);
+formData.append('file', avatarFile); // File объект
+formData.append('userId', userId);
 
-const response = await fetch("http://localhost:3000/media/upload/avatar", {
-  method: "POST",
-  body: formData,
+const response = await fetch('http://localhost:3000/media/upload/avatar', {
+  method: 'POST',
+  body: formData
 });
 
 const result = await response.json();
 if (result.success) {
-  console.log("Avatar uploaded:", result.file.url);
+  console.log('Avatar uploaded:', result.file.url);
 }
 ```
 
@@ -1053,59 +1053,77 @@ if (result.success) {
 
 ```javascript
 // Полный файл
-const response = await fetch("http://localhost:3000/media/track/trackId");
+const response = await fetch('http://localhost:3000/media/track/trackId');
 const audioBlob = await response.blob();
 const audioUrl = URL.createObjectURL(audioBlob);
 
 // Частичный запрос (Range)
-const partialResponse = await fetch(
-  "http://localhost:3000/media/track/trackId",
-  {
-    headers: {
-      Range: "bytes=0-1048575", // первые 1MB
-    },
+const partialResponse = await fetch('http://localhost:3000/media/track/trackId', {
+  headers: {
+    'Range': 'bytes=0-1048575' // первые 1MB
   }
-);
+});
 ```
 
 ### Пример: Получение всех аудиофайлов пользователя
 
 ```javascript
-const response = await fetch(
-  "http://localhost:3000/users/johndoe/audio-files",
-  {
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-    },
+const response = await fetch('http://localhost:3000/users/johndoe/audio-files', {
+  headers: {
+    'Authorization': `Bearer ${accessToken}`
   }
-);
+});
 
 const result = await response.json();
 if (result.success) {
-  console.log("Audio files:", result.audioFiles);
-  result.audioFiles.forEach((file) => {
+  console.log('Audio files:', result.audioFiles);
+  result.audioFiles.forEach(file => {
     console.log(`- ${file.originalName} (${file.mimeType})`);
   });
 }
 ```
 
-### Пример: Подписка на пользователя
+### Пример: Получение списка всех пользователей
 
 ```javascript
-const response = await fetch(
-  `http://localhost:3000/social/follow/${targetUserId}`,
-  {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      followerId: currentUserId,
-    }),
+// Получить список всех пользователей, исключая текущего
+const currentUserId = localStorage.getItem('userId');
+const response = await fetch(`http://localhost:3000/users?excludeUserId=${currentUserId}`, {
+  headers: {
+    'Authorization': `Bearer ${accessToken}`
   }
-);
+});
 
 const result = await response.json();
 if (result.success) {
-  console.log("Successfully followed user");
+  console.log('Total users:', result.profiles.length);
+  result.profiles.forEach(user => {
+    console.log(`- ${user.username} (${user.displayName || user.username})`);
+  });
+}
+
+// Получить список всех пользователей (включая текущего)
+const responseAll = await fetch('http://localhost:3000/users', {
+  headers: {
+    'Authorization': `Bearer ${accessToken}`
+  }
+});
+```
+
+### Пример: Подписка на пользователя
+
+```javascript
+const response = await fetch(`http://localhost:3000/social/follow/${targetUserId}`, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    followerId: currentUserId
+  })
+});
+
+const result = await response.json();
+if (result.success) {
+  console.log('Successfully followed user');
 }
 ```
 
@@ -1114,26 +1132,26 @@ if (result.success) {
 ```javascript
 // Удаление трека через специальный эндпоинт
 const response = await fetch(`http://localhost:3000/media/track/${trackId}`, {
-  method: "DELETE",
+  method: 'DELETE',
   headers: {
-    Authorization: `Bearer ${accessToken}`,
-  },
+    'Authorization': `Bearer ${accessToken}`
+  }
 });
 
 const result = await response.json();
 if (result.success) {
-  console.log("Track deleted successfully");
+  console.log('Track deleted successfully');
   // Счетчик tracksCount в профиле пользователя автоматически обновится
 } else {
-  console.error("Error:", result.error);
+  console.error('Error:', result.error);
 }
 
 // Альтернативный способ: удаление через общий эндпоинт
 const response2 = await fetch(`http://localhost:3000/media/file/${fileId}`, {
-  method: "DELETE",
+  method: 'DELETE',
   headers: {
-    Authorization: `Bearer ${accessToken}`,
-  },
+    'Authorization': `Bearer ${accessToken}`
+  }
 });
 ```
 
@@ -1158,7 +1176,6 @@ const response2 = await fetch(`http://localhost:3000/media/file/${fileId}`, {
 1. **Микросервисная архитектура**: Backend использует микросервисы (Auth, User, Media, Social), которые общаются через RabbitMQ. Все HTTP запросы проходят через API Gateway.
 
 2. **Базы данных**:
-
    - PostgreSQL - для данных аутентификации
    - MongoDB - для профилей пользователей и медиа метаданных
    - Redis - для токенов и кэширования
@@ -1179,3 +1196,4 @@ const response2 = await fetch(`http://localhost:3000/media/file/${fileId}`, {
 
 **Версия документации:** 1.1  
 **Дата обновления:** 2024-01-20
+
