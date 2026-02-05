@@ -82,11 +82,11 @@ export default function ProfilePage() {
     }
   };
 
-  const handleTrackUploadSuccess = (track: TrackFile) => {
+  const handleTrackUploadSuccess = async (track: TrackFile) => {
     // Добавляем новый трек в список
     setTracks((prev) => [track, ...prev]);
 
-    // Обновляем счетчик треков в профиле
+    // Оптимистично обновляем счетчик треков в профиле
     if (profile) {
       setProfile({
         ...profile,
@@ -99,14 +99,18 @@ export default function ProfilePage() {
       });
     }
 
-    // Перезагружаем профиль для получения актуальных данных
+    // Перезагружаем профиль для получения актуальных данных с сервера
     const userId = localStorage.getItem("userId");
     if (userId) {
-      getUserProfile(userId).then((result) => {
+      try {
+        const result = await getUserProfile(userId);
         if (result.success && result.user) {
           setProfile(result.user);
         }
-      });
+      } catch (err) {
+        console.error("Ошибка при обновлении профиля:", err);
+        // В случае ошибки оставляем оптимистичное обновление
+      }
     }
   };
 
@@ -126,7 +130,7 @@ export default function ProfilePage() {
       // Удаляем трек из списка
       setTracks((prev) => prev.filter((track) => track.fileId !== trackId));
 
-      // Обновляем счетчик треков в профиле
+      // Оптимистично обновляем счетчик треков в профиле
       if (profile) {
         setProfile({
           ...profile,
@@ -139,14 +143,18 @@ export default function ProfilePage() {
         });
       }
 
-      // Перезагружаем профиль для получения актуальных данных
+      // Перезагружаем профиль для получения актуальных данных с сервера
       const userId = localStorage.getItem("userId");
       if (userId) {
-        getUserProfile(userId).then((result) => {
+        try {
+          const result = await getUserProfile(userId);
           if (result.success && result.user) {
             setProfile(result.user);
           }
-        });
+        } catch (err) {
+          console.error("Ошибка при обновлении профиля:", err);
+          // В случае ошибки оставляем оптимистичное обновление
+        }
       }
     } catch (err) {
       console.error("Ошибка при удалении трека:", err);
