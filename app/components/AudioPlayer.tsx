@@ -24,13 +24,19 @@ export default function AudioPlayer({
   const [currentTime, setCurrentTime] = useState(0);
   const [totalDuration, setTotalDuration] = useState(duration || 0);
   const [isLoading, setIsLoading] = useState(false);
+  const [isSeeking, setIsSeeking] = useState(false);
+  const [seekTime, setSeekTime] = useState(0);
   const { volume, setCurrentTrack } = useVolume();
 
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
 
-    const updateTime = () => setCurrentTime(audio.currentTime);
+    const updateTime = () => {
+      if (!isSeeking) {
+        setCurrentTime(audio.currentTime);
+      }
+    };
     const updateDuration = () => setTotalDuration(audio.duration);
     const handleEnded = () => {
       setIsPlaying(false);
@@ -59,7 +65,7 @@ export default function AudioPlayer({
       audio.removeEventListener("canplay", handleCanPlay);
       audio.removeEventListener("pause", handlePause);
     };
-  }, [setCurrentTrack]);
+  }, [setCurrentTrack, isSeeking]);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -97,12 +103,27 @@ export default function AudioPlayer({
   };
 
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newTime = parseFloat(e.target.value);
+    setSeekTime(newTime);
+    // Обновляем только визуальное состояние во время перетаскивания
+    if (isSeeking) {
+      setCurrentTime(newTime);
+    }
+  };
+
+  const handleSeekStart = () => {
+    setIsSeeking(true);
+    setSeekTime(currentTime);
+  };
+
+  const handleSeekEnd = () => {
     const audio = audioRef.current;
     if (!audio) return;
 
-    const newTime = parseFloat(e.target.value);
-    audio.currentTime = newTime;
-    setCurrentTime(newTime);
+    // Обновляем audio.currentTime только когда пользователь отпустил ползунок
+    audio.currentTime = seekTime;
+    setCurrentTime(seekTime);
+    setIsSeeking(false);
   };
 
   const formatTime = (seconds: number): string => {
@@ -112,7 +133,9 @@ export default function AudioPlayer({
     return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
-  const progress = totalDuration > 0 ? (currentTime / totalDuration) * 100 : 0;
+  // Используем seekTime для визуального отображения во время перетаскивания
+  const displayTime = isSeeking ? seekTime : currentTime;
+  const progress = totalDuration > 0 ? (displayTime / totalDuration) * 100 : 0;
 
   return (
     <div className="bg-white dark:bg-zinc-900 rounded-xl shadow border border-zinc-200 dark:border-zinc-800 p-4">
@@ -174,15 +197,19 @@ export default function AudioPlayer({
               type="range"
               min="0"
               max={totalDuration || 0}
-              value={currentTime}
+              value={displayTime}
               onChange={handleSeek}
+              onMouseDown={handleSeekStart}
+              onMouseUp={handleSeekEnd}
+              onTouchStart={handleSeekStart}
+              onTouchEnd={handleSeekEnd}
               className="flex-1 h-2 bg-zinc-200 dark:bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-foreground"
               style={{
                 background: `linear-gradient(to right, var(--foreground) 0%, var(--foreground) ${progress}%, rgb(228 228 231) ${progress}%, rgb(228 228 231) 100%)`,
               }}
             />
             <div className="flex-shrink-0 text-xs text-zinc-600 dark:text-zinc-400 min-w-[80px] text-right">
-              {formatTime(currentTime)} / {formatTime(totalDuration)}
+              {formatTime(displayTime)} / {formatTime(totalDuration)}
             </div>
           </div>
         </div>
